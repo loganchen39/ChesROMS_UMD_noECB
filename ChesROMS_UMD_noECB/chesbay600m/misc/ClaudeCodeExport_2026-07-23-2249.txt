@@ -1,0 +1,1101 @@
+╭─── Claude Code v2.1.217 ─────────────────────────────────────────────────────╮
+│                                                    │ Tips for getting        │
+│                 Welcome back Logan!                │ started                 │
+│                                                    │ Run /init to create a … │
+│                       ▐▛███▜▌                      │ ─────────────────────── │
+│                      ▝▜█████▛▘                     │ What's new              │
+│                        ▘▘ ▝▝                       │ Changed `/code-review`… │
+│  Sonnet 5 · Claude Pro · ligang.chen@gmail.com's   │ Added screen-reader an… │
+│  Organization                                      │ Fixed Windows paths wi… │
+│    /…/ChesROMS/ChesROMS_VIMS_noECB/chesbay600m     │ /release-notes for more │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+❯ I used chesbay600m/run_roms.tcsh to submit the job, and it failed during      
+  running time with output file chesbay600m/roms.o6831415, check what's wrong   
+  and how to fix it.                                                            
+
+  Searched for 1 pattern, read 2 files, ran 1 shell command (ctrl+o to expand)
+
+● The real failure is earlier in the log, not the stack traces at the bottom
+  (those are just every rank crashing after the master hit a fatal ROMS error).
+  Let me check the input file to confirm the cause.
+
+  Searched for 6 patterns, read 2 files, listed 1 directory, ran 6 shell commands (ctrl+o to expand)
+
+● Found it. Here's the full chain of what happened.
+
+  What actually crashed the run
+
+  The stack traces/signal 15 mess at the bottom of roms.o6831415 are not the
+  real error — they're every MPI rank dying after the master hit a clean, fatal
+  ROMS error. The real message is at line 1406:
+
+  MULTIFILE_INFO_S2D - Error while processing lateral boundary multi-files:
+                       data does not include initialization time = 1975-01-02
+  22:15:48.00
+    1994-01-01 12:00:00.00  1994-01-31 12:00:00.00   .../bry_199401.nc
+
+  ROMS computed the model's initialization time as 1975-01-02, but your boundary
+  file bry_199401.nc only covers Jan 1994. Since the "init time" falls outside
+  the boundary file's range, check_multifile.F throws exit_flag=4 and the run
+  aborts in ROMS_initialize.
+
+  Root cause: a real bug in the ROMS source
+
+  Your ININAME file (initial_1993-12-31.nc) has ocean_time = 385692, units
+  "hours since 1950-01-01 00:00:00" — which correctly corresponds to 1993-12-31 
+  12:00, matching the filename.
+
+  The bug is in ROMS/Utility/get_state.F (~line 392-406), where the code that
+  converts the input time to seconds only recognizes 'day' and 'second' in the
+  units string:
+
+  IF (INDEX(TRIM(var_Achar(i)),'day').ne.0) THEN
+    time_scale=day2sec
+  ELSE IF (INDEX(TRIM(var_Achar(i)),'second').ne.0) THEN
+    time_scale=1.0_dp
+  END IF
+
+  It's missing the 'hour' case. Compare with the correct version of this same
+  logic in check_multifile.F (~line 706-712), which is why your boundary-file
+  date range printed correctly:
+
+  IF (INDEX(TRIM(var_Achar(i)),'day').ne.0) THEN
+    Tscale=86400.0_r8
+  ELSE IF (INDEX(TRIM(var_Achar(i)),'hour').ne.0) THEN
+    Tscale=3600.0_r8
+  ELSE IF (INDEX(TRIM(var_Achar(i)),'second').ne.0) THEN
+    Tscale=1.0_r8
+  END IF
+
+  Because get_state.F silently skips scaling for "hours since ...", the value
+  stays in hours but gets used as if it were seconds. That's exactly why the
+  reported init time (1975-01-02 22:15:48, i.e. TIME_REF + 166548 "seconds") is
+  off by a factor of 3600/86400 = 24× from the correct 1993-12-31 — I verified
+  the arithmetic matches exactly.
+
+  Two ways to fix it
+
+  Option A (no recompile, fastest): rescale the time units in your
+  initial-conditions file so it isn't "hours since ...":
+  ncap2 -O -s 'ocean_time=ocean_time*3600.0' initial_1993-12-31.nc
+  initial_1993-12-31_fixed.nc
+  ncatted -a units,ocean_time,o,c,"seconds since 1950-01-01 00:00:00"
+  initial_1993-12-31_fixed.nc
+  Then point ININAME in roms_cb600m.in at the fixed file. (Worth fixing your
+  Matlab c_initial script too, so future init files use "seconds since ..."
+  instead of "hours since ...".)
+
+  Option B (proper fix, needs recompile): add the missing 'hour' branch to
+  get_state.F (mirroring check_multifile.F) and rebuild romsM.
+
+  I'd suggest Option A to unblock this run today, and separately patching
+  get_state.F since any other ROMS input file using "hours since ..." as its
+  initial-condition source will hit the same bug. Want me to apply the source
+  patch and/or regenerate the fixed NetCDF file now?
+
+✻ Crunched for 7m 34s
+
+● Background command "Locate ROMS source for check_multifile.F" completed (exit
+code 0)
+
+● That background find command (the earlier stray filesystem-wide search) has
+  finished — it's superseded by the targeted search I already used, so no action
+  needed there.
+
+  I've diagnosed the crash: get_state.F is missing an 'hour' branch when scaling
+  the initial-condition file's time units, causing the init time to be
+  miscomputed as 1975-01-02 instead of the correct 1993-12-31, which then falls
+  outside your boundary file's date range and aborts the run. Let me know if
+  you'd like me to apply the NetCDF rescale fix (Option A) and/or patch
+  get_state.F (Option B).
+
+✻ Churned for 5s
+
+❯ it failed again with output file roms.o6833628, help check what's wrong and   
+  how to fix it.                                                                
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● The good news: the previous get_state.F time-units bug is fixed — the init
+  time now correctly reads as 1993-12-31 12:00:00, matching the
+  initial-conditions file exactly (t = 6939.5000 days, exact match).
+
+  But that surfaces a real, separate problem:
+
+  MULTIFILE_INFO_S2D - Error: data does not include initialization time =
+  1993-12-31 12:00:00.00
+     1994-01-01 12:00:00.00  1994-01-31 12:00:00.00   bry_199401.nc
+
+  Your boundary file bry_199401.nc starts at 1994-01-01 12:00, but your
+  initial-conditions file (initial_1993-12-31.nc) starts the model 1 day 
+  earlier, at 1993-12-31 12:00. There's no boundary data for that first day —
+  this is a data-coverage gap, not a code bug this time.
+
+  Let me check what boundary files you have available to figure out the best
+  fix.
+
+  Listed 1 directory, ran 1 shell command (ctrl+o to expand)
+
+● Both files check out individually — the fix from last time worked
+  (initial_1993-12-31.nc was regenerated with "seconds since ..." units, per its
+  target filename ..._unitsSecondsSince.nc, and now reads correctly as t=6939.5
+  days).
+
+  The remaining problem is a genuine data gap, not a bug: your boundary file's
+  bry_time starts exactly 24 hours after your initial condition:
+
+  - initial_1993-12-31.nc → model start: 1993-12-31 12:00
+  - bry_199401.nc → first record: 1994-01-01 12:00 (bry_time=385716; ini file's
+  ocean_time=385692 — a 24hr/1-record gap)
+
+  There's no earlier boundary file (bry_199401.nc is the only one), and no
+  earlier initial-conditions file either. check_multifile.F correctly refuses to
+  run because there's no boundary data to cover that first day.
+
+  Two ways to close the gap — I'd rather you pick, since it's a modeling-data
+  decision, not just a code fix:
+
+● User answered Claude's questions:
+  ⎿  · How do you want to close the 1-day boundary-data gap (bry file starts 
+     1994-01-01 12:00, but init is 1993-12-31 12:00)? → Shift model start to 
+     match bry file
+  Listed 1 directory (ctrl+o to expand)
+
+● I looked into it, and this option isn't immediately doable — you currently
+  only have initial-condition data for 1993-12-31 (several regenerated variants,
+  all built from the same date). There's no Jan-1-1994 initial file, and
+  creating one requires re-running your Matlab preprocessing
+  (d_mercator2roms_Ligang_initial_fromGlorys12v1.m) against Glorys12v1 source
+  data for a different date.
+
+  Searched for 1 pattern, listed 1 directory (ctrl+o to expand)
+
+✻ Cogitated for 9m 41s
+
+❯ I'll use the current 1993-12-31 data as the 1994-01-01 data, so just tell me  
+  how to change the time stamp in the current initial-condition data.           
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● That works as a pragmatic fix — I'll copy the file (not overwrite the
+  original) and shift ocean_time forward by 24 hours (+86400 seconds) so it
+  reads as 1994-01-01 12:00:00, matching the boundary file's first record.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● New file confirmed: ocean_time = 1388577600 → 1994-01-01 12:00:00, which now
+  lines up exactly with bry_199401.nc's first record.
+
+  Now let's point input_files_4UMD/ at it and update ININAME in the run script.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+✻ Sautéed for 2m 37s
+
+❯ I reran and it failed again with output file roms.o6834688. I know it's       
+  because the tides_chesbay336x564_v20210914.nc has different size of           
+  dimension, which was meant for another ROMS domain. Is there a way to not to  
+  use this tides data by not providing this file? I tried before but it failed. 
+
+  Ran 4 shell commands (ctrl+o to expand)
+
+● Found it. The tides file isn't just a runtime input — SSH_TIDES and UV_TIDES
+  (plus RAMP_TIDES, ADD_FSOBC, ADD_M2OBC) are compile-time CPP flags, baked into
+  your romsM binary in roms_ecb.h:128-133:
+
+  #define SSH_TIDES
+  #ifdef  SSH_TIDES
+  # define RAMP_TIDES
+  # define ADD_FSOBC
+  #endif
+  #define UV_TIDES
+  #ifdef  UV_TIDES
+  # define ADD_M2OBC
+  #endif
+
+  That's exactly why just removing TIDENAME from roms_cb600m.in didn't work
+  before — the compiled binary always tries to read tidal forcing regardless of
+  what the .in file says, since the code path is compiled in.
+
+  To actually disable tides you need to:
+  1. #undef (or comment out) SSH_TIDES and UV_TIDES in roms_ecb.h — this also
+  disables RAMP_TIDES/ADD_FSOBC/ADD_M2OBC since those are nested inside the
+  #ifdef blocks
+  2. Recompile romsM via build_roms.csh
+  3. TIDENAME in roms_cb600m.in can then be left blank/commented — it won't be
+  read
+
+  This is a real physics change (no tidal forcing at the open boundaries/SSH),
+  and requires a recompile (which can take a while and uses real resources), so
+  I want to confirm before doing it rather than assume.
+
+● User answered Claude's questions:
+  ⎿  · Disabling tides requires editing roms_ecb.h (undef SSH_TIDES/UV_TIDES) 
+     and recompiling romsM via build_roms.csh. Want me to do that now? → Just 
+     edit the header, I'll recompile myself
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(roms_ecb.h)
+  ⎿  Added 2 lines, removed 2 lines
+      125  #define LIMIT_VVISC
+      126  
+      127  /* Open boundary condition settings */
+      128 -#define SSH_TIDES                                             
+      128 +#undef  SSH_TIDES                                             
+      129  #ifdef  SSH_TIDES
+      130  # define RAMP_TIDES
+      131  # define ADD_FSOBC
+      132  #endif
+      133 -#define UV_TIDES                                              
+      133 +#undef  UV_TIDES                                              
+      134  #ifdef  UV_TIDES
+      135  # define ADD_M2OBC
+      136  #endif
+
+● roms_ecb.h updated — SSH_TIDES and UV_TIDES are now #undef, which also
+  disables RAMP_TIDES, ADD_FSOBC, and ADD_M2OBC since those live inside the
+  now-false #ifdef blocks. Run build_roms.csh when you're ready to recompile
+  romsM, then you can leave TIDENAME blank/commented in roms_cb600m.in.
+
+✻ Worked for 58s
+
+❯ I recompiled and reran but it failed again with output file roms.o6835021. I  
+  know it's because of the setting of the forcing files, i.e. the NFFILES and   
+  FRCNAME. help check and find how to fix it.                                   
+
+  Read 2 files, ran 2 shell commands (ctrl+o to expand)
+
+● Found it — a classic ROMS .in gotcha. Per the file's own documentation (lines
+  3908-3938):
+
+  - | = continuation of the same field (time-split across multiple files)
+  - \ = move to the next distinct field
+  - NFFILES = number of unique fields
+
+  Your FRCNAME list (lines 1343-1359) has NFFILES == 1 but lists 13 different
+  fields (cloud, latent, lwrad, Pair, Qair, rain, sensible, shflux, sms, swflux,
+  swrad, Tair, wind) all joined with |. That tells ROMS "these are 13
+  time-chunks of one single field" instead of "13 separate fields" — so when it
+  goes looking for Pair, it just grabs whatever file is active in that one chain
+  (the wind file) instead of scanning across all 13 files by variable name.
+  That's why Pair "isn't found" in frc_ches_wind_era.nc — ROMS never even looks
+  in frc_ches_Pair_era.nc.
+
+  Fix: set NFFILES == 13 and change the separators between distinct fields from
+  | to \.
+
+● Update(roms_cb600m.in)
+  ⎿  Added 13 lines, removed 13 lines
+      1340  ! continuation (\) or a vertical bar (|) symbol after each en
+            try, except
+      1341  ! the last one.
+      1342  
+      1343 -     NFFILES == 1                          ! number of unique
+           - forcing files                                               
+      1343 +     NFFILES == 13                         ! number of unique
+           + forcing files                                               
+      1344  !    NFFILES == 0                          ! number of unique
+             forcing files
+      1345  !    NFFILES == 5                          ! number of unique
+             forcing files
+      1346  
+      1347 -     FRCNAME == /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           -D/frc_ches_cloud_era.nc    |                                 
+      1348 -                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           -D/frc_ches_latent_era.nc   |                                 
+      1349 -                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           -D/frc_ches_lwrad_era.nc    |                                 
+      1350 -                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           -D/frc_ches_Pair_era.nc     |                                 
+      1351 -                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           -D/frc_ches_Qair_era.nc     |                                 
+      1352 -                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           -D/frc_ches_rain_era.nc     |                                 
+      1353 -                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           -D/frc_ches_sensible_era.nc |                                 
+      1354 -                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           -D/frc_ches_shflux_era.nc   |                                 
+      1355 -                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           -D/frc_ches_sms_era.nc      |                                 
+      1356 -                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           -D/frc_ches_swflux_era.nc   |                                 
+      1357 -                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           -D/frc_ches_swrad_era.nc    |                                 
+      1358 -                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           -D/frc_ches_Tair_era.nc     |                                 
+      1347 +     FRCNAME == /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           +D/frc_ches_cloud_era.nc    \                                 
+      1348 +                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           +D/frc_ches_latent_era.nc   \                                 
+      1349 +                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           +D/frc_ches_lwrad_era.nc    \                                 
+      1350 +                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           +D/frc_ches_Pair_era.nc     \                                 
+      1351 +                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           +D/frc_ches_Qair_era.nc     \                                 
+      1352 +                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           +D/frc_ches_rain_era.nc     \                                 
+      1353 +                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           +D/frc_ches_sensible_era.nc \                                 
+      1354 +                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           +D/frc_ches_shflux_era.nc   \                                 
+      1355 +                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           +D/frc_ches_sms_era.nc      \                                 
+      1356 +                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           +D/frc_ches_swflux_era.nc   \                                 
+      1357 +                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           +D/frc_ches_swrad_era.nc    \                                 
+      1358 +                /glade/u/home/lgchen/ChesROMS/input_files_4UM
+           +D/frc_ches_Tair_era.nc     \                                 
+      1359                  /glade/u/home/lgchen/ChesROMS/input_files_4UM
+            D/frc_ches_wind_era.nc
+      1360  
+      1361  
+
+● roms_cb600m.in fixed: NFFILES == 13, and separators between the 13 distinct
+  forcing fields changed from | to \. No recompile needed this time — it's just
+  an input-file change. Go ahead and resubmit.
+✻ Churned for 1m 1s
+
+❯ I reran and it failed with output file roms.o6835179, which has "error while  
+  writing variable:  ocean_time" to roms_his.nc. Help check and recommend how   
+  to fix it.                                                                    
+
+  Searched for 4 patterns, ran 5 shell commands (ctrl+o to expand)
+
+● Background command "Locate netcdf.h to check error code -33 meaning" completed
+(exit code 0)
+
+● Found it — and this one traces all the way back to a setting we never actually
+  fixed: DSTART is still 3653.d0 (line 488, meaning "Jan 1, 1985" relative to
+  TIME_REF=19750101), even though the model now correctly initializes from
+  1994-01-01 12:00:00. That mismatch didn't crash initialization (ROMS just runs
+  with a huge absolute step counter), but it corrupts the periodic-output
+  scheduling.
+
+  Here's the chain, confirmed in ROMS/Nonlinear/output.F (~line 340):
+
+  1. ntstart is computed from (time(ng) - dstart*day2sec)/dt → with the stale
+  DSTART, this comes out to 4,734,001 instead of a small number like 721. That's
+  exactly the huge step count you saw printed: TIME-STEP ... 4734000 1994-01-01
+  12:00:00.00.
+  2. For NDEFQCK > 0 (yours is 1440), the file-creation trigger is computed as:
+  idefQCK(ng) = ((ntstart(ng)-1)/ndefQCK(ng)) * ndefQCK(ng)
+  2. Fed the corrupted ntstart, this lands on a value that never satisfies
+  (iic(ng)-1).eq.idefQCK(ng) at the real first step — so def_quick (which
+  creates roms_qck.nc and gets a valid NetCDF ID) is never called.
+  3. But the separate "should I write now?" check a few lines later only tests
+  MOD(iic(ng)-1, nQCK(ng)).eq.0 — it doesn't check whether the file was actually
+  defined. With nQCK=180, 4734000 mod 180 = 0, so wrt_quick fires anyway, using
+  a QUICKSAVE file handle that was never opened → NetCDF error -33 NC_EBADID 
+  ("Not a valid ID") on the ocean_time write.
+
+  HISTORY output didn't hit this because wrt_his/def_his use a plain
+  iic(ng).eq.ntstart(ng) check with no dependence on the (corrupted)
+  idefQCK-style arithmetic — that's why roms_his.nc got created fine and only
+  roms_qck.nc broke.
+
+  Fix: set DSTART to the value already given as a comment in your file — line
+  479:
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(roms_cb600m.in)
+  ⎿  Added 2 lines, removed 2 lines
+      476  !     DSTART =  8036.d0                   ! (Days)<=>Jan. 1,19
+           97,00:00.
+      477  !     DSTART =  7670.d0                   ! (Days)<=>Jan. 1,19
+           96,00:00.
+      478  !     DSTART =  7305.d0                   ! (Days)<=>Jan. 1,19
+           95,00:00.
+      479 -!     DSTART =  6940.d0                   ! (Days)<=>Jan. 1,19
+          -94,00:00.                                                     
+      479 +      DSTART =  6940.d0                   ! (Days)<=>Jan. 1,19
+          +94,00:00.                                                     
+      480  !     DSTART =  6575.d0                   ! (Days)<=>Jan. 1,19
+           93,00:00.
+      481  !     DSTART =  6209.d0                   ! (Days)<=>Jan. 1,19
+           92,00:00.
+      482  !     DSTART =  5844.d0                   ! (Days)<=>Jan. 1,19
+           91,00:00.
+     ...
+      485  !     DSTART =  4748.d0                   ! (Days)<=>Jan. 1,19
+           88,00:00.
+      486  !     DSTART =  4383.d0                   ! (Days)<=>Jan. 1,19
+           87,00:00.
+      487  !     DSTART =  4018.d0                   ! (Days)<=>Jan. 1,19
+           86,00:00.
+      488 -      DSTART =  3653.d0                   ! (Days)<=>Jan. 1,19
+          -85,00:00.                                                     
+      488 +!     DSTART =  3653.d0                   ! (Days)<=>Jan. 1,19
+          +85,00:00.                                                     
+      489    TIDE_START =  0.d0                      ! (Days (relative to
+            TIME_REF)) (file with 37 constituents)
+      490      TIME_REF =  19750101.0d0              ! yyyymmdd.dd
+      491  
+
+● DSTART is now 6940.d0 (Jan 1, 1994), matching TIME_REF and your actual
+  init/boundary data. This should give a sane ntstart (~721, i.e. 12 hours in at
+  60s steps) instead of 4,734,001, fixing the QUICKSAVE file-definition
+  scheduling — and any other NDEF*-based output (AVG, DIA) that could have hit
+  the same bug. No recompile needed, just resubmit.
+
+✻ Sautéed for 4m 12s
+
+❯ I reran and it failed again with output file roms.o6835698, the error seems   
+  to be the same as the last one, see lines 1515 to 1528. Help check and        
+  recommend how to fix it.                                                      
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● Progress — DSTART fix worked (step counter is now sane: 720, i.e. ntstart=721,
+  matching 12 hours into 1994-01-01). But it exposed a genuine edge case in the
+  QUICKSAVE multi-file scheduling logic in output.F.
+
+  The math: ntstart-1 = 720. With NDEFQCK=1440, ROMS computes:
+  idefQCK = ((ntstart-1)/ndefQCK)*ndefQCK   ! = (720/1440)*1440 = 0   (integer 
+  division)
+  IF (idefQCK < iic-1) idefQCK = idefQCK + ndefQCK   ! 0 < 720, so idefQCK = 
+  1440
+  So the code decides the next file boundary is at step 1440 and skips creating
+  the QUICKSAVE file now. But the separate write-trigger check only tests
+  MOD(iic-1, NQCK) == 0 — and 720 mod 180 = 0, so it tries to write anyway, into
+  a file that was never defined → same NC_EBADID crash.
+
+  This only bites QCK because NQCK (180) ≠ NDEFQCK (1440) and your run's start
+  offset (720) happens to be a multiple of NQCK but not of NDEFQCK. HIS avoided
+  this because NDEFHIS=0 uses a simpler "always define at ntstart" path. AVG/DIA
+  are actually safe too — NAVG=NDEFAVG=1440 and NDIA=NDEFDIA=1440, so their
+  write and define steps coincide.
+
+  Cleanest fix, no recompile: set NDEFQCK = 0 so QUICKSAVE uses that same simple
+  "one file, defined at ntstart" path instead of the multi-file boundary
+  arithmetic — matching what your .in file's own documentation says ("NDEFQCK=0,
+  the model will only process one QUICKSAVE file"), and your 29-day run isn't
+  long enough that a single QCK file would be unreasonably large anyway.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      280          NXTR == 72
+      281       NDEFXTR == 0
+      282          NQCK ==    180 ! 3hrs    @DT=60s.
+      283 -     NDEFQCK ==   1440 ! 1day    @DT=60s.                     
+      283 +     NDEFQCK ==      0 ! One single QCK file per calculation. 
+      284        NTSAVG ==      1
+      285          NAVG ==   1440 ! 1day    @DT=60s.
+      286       NDEFAVG ==   1440 ! 1day    @DT=60s.
+
+● NDEFQCK set to 0 (single QUICKSAVE file for the whole run). No recompile
+  needed — resubmit and it should get past this point.
+
+✻ Baked for 1m 6s
+
+❯ I reran and it failed with output file roms.o6835775, which contains          
+  floating-point exceptions, help check and recommend how to fix it.            
+
+  Ran 4 shell commands (ctrl+o to expand)
+
+● This time it's a genuine numerical instability, not a config bug — and it's
+  consistent with a warning ROMS already printed at startup.
+
+  What happened: The model blew up (NaN) on the very first computed timestep
+  (721), at grid point (368, 2, 20) — right next to the southern open boundary,
+  at the surface. I checked the bathymetry there: h ≈ 500 m, and the domain's
+  true max depth is h_max ≈ 3290 m (this "600 m" bay grid extends out past the
+  bay mouth onto the continental shelf/slope). That's real, physically
+  legitimate bathymetry — not a data error.
+
+  Why that causes an instant blowup: ROMS already flagged this at initialization
+  —
+  Maximum barotropic Courant Number =  3.62960339E+00
+  A barotropic (2D/external mode) Courant number of 3.63 is wildly above the
+  LF-AM3 stability limit (should be comfortably < 1, ideally ~0.5–0.7). With
+  DT=60s and NDTFAST=7, the barotropic sub-step is dtfast = 60/7 ≈ 8.57s — far
+  too large for gravity waves to propagate stably through 500–3000 m of water at
+  600 m grid spacing. This isn't a bug in your setup, it's a mismatch between
+  the 2D-mode timestep and the deep water at your open boundary — guaranteed to
+  blow up immediately, exactly where it did.
+
+  Fix: increase NDTFAST (more, smaller barotropic sub-steps per baroclinic step)
+  to bring the Courant number down. Scaling from the reported 3.63:
+
+  ┌─────────────┬────────────┬────────────────────────┐
+  │   NDTFAST   │ dtfast (s) │ Max barotropic Courant │
+  ├─────────────┼────────────┼────────────────────────┤
+  │ 7 (current) │ 8.57       │ 3.63                   │
+  ├─────────────┼────────────┼────────────────────────┤
+  │ 36          │ 1.67       │ ~0.71                  │
+  ├─────────────┼────────────┼────────────────────────┤
+  │ 40          │ 1.50       │ ~0.63                  │
+  ├─────────────┼────────────┼────────────────────────┤
+  │ 51          │ 1.18       │ ~0.50                  │
+  └─────────────┴────────────┴────────────────────────┘
+
+  I'd recommend NDTFAST = 40 as a reasonable safety margin (Courant ≈ 0.63)
+  without over-paying in 2D-mode compute cost. Want me to apply that (no
+  recompile needed — it's a runtime .in parameter), or would you prefer a
+  different margin (e.g. 36 for less overhead, or 51 for more headroom)?
+
+✻ Baked for 1m 46s
+
+❯ Yes                                                                           
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      236  !     NTIMES ==  44640  ! Jan.1,1994 to Feb. 1,1994 @DT=60s.
+      237        NTIMES ==  41760  ! Jan.1,1994 to Jan. 30,1994 @DT=60s. 
+           29 days
+      238            DT == 60.0d0
+      239 -     NDTFAST ==  7                                            
+      239 +     NDTFAST ==  40                                           
+      240  
+      241  ! Number of timesteps for computing observation impacts during
+            the
+      242  ! analysis-forecast cycle.
+● NDTFAST set to 40 in roms_cb600m.in (dtfast now ~1.5s, max barotropic Courant
+  ≈0.63). No recompile needed — resubmit whenever you're ready.
+
+✻ Cogitated for 14s
+
+❯ I reran and it failed again with output file roms.o6836211, help check and    
+  recommend how to fix it.                                                      
+
+  Ran 5 shell commands (ctrl+o to expand)
+
+● This is a different failure mode than before — a local shallow-water 
+  wetting/drying instability, not the barotropic CFL issue (that's fixed;
+  Courant is now a healthy 0.635).
+
+  What happened: The model ran fine for ~103 minutes (steps 721→824) before
+  blowing up, with MaxSpeed climbing from ~1.5 m/s to 55 m/s at the surface
+  (k=20). I checked the bathymetry at every blow-up location — they're all in
+  extremely shallow water:
+
+  ┌───────────┬─────────────┐
+  │   (i,j)   │ depth h (m) │
+  ├───────────┼─────────────┤
+  │ (313,495) │ 1.13        │
+  ├───────────┼─────────────┤
+  │ (337,535) │ 0.94        │
+  ├───────────┼─────────────┤
+  │ (330,526) │ 0.75        │
+  ├───────────┼─────────────┤
+  │ (309,497) │ 1.19        │
+  └───────────┴─────────────┘
+
+  The smoking gun: your .in file sets
+  DCRIT == 0.75d0   ! m, default is 0.10d0.
+  That's the wetting/drying critical depth — and it's set almost exactly equal
+  to the grid's shallowest depth (h_min = 0.7508 m). WET_DRY is enabled
+  (roms_ecb.h:56). With DCRIT ≈ h_min, your shallowest cells sit right on the
+  dry/wet threshold, so they flip wet↔dry on essentially every small sea-surface
+  fluctuation — a well-known source of exactly this kind of localized
+  surface-velocity blowup. The .in file's own comment tells you the intended
+  default is 0.10, not 0.75 — this looks like DCRIT was mistakenly set to the
+  grid's minimum depth instead of a small buffer well below it.
+
+  Secondary contributor: VISC2 == 0.0 and TNU2 == 0.0 (temp) — there's zero
+  horizontal momentum/heat diffusion anywhere in the domain, so once noise
+  appears in these thin cells nothing damps it.
+
+  Recommendation:
+  1. Set DCRIT back to something well below h_min — I'd suggest 0.20 (double the
+  documented default, small margin under h_min=0.75), rather than the literal
+  default 0.10 which is also fine but a bit closer to the true minimum.
+  2. Optionally add a small VISC2 (e.g. 1.0 m²/s) for basic damping — common for
+  a 600 m coastal grid.
+
+  Want me to apply DCRIT = 0.20 (and optionally VISC2 = 1.0), or would you
+  prefer different values?
+
+✻ Baked for 1m 27s
+
+❯ Yes, apply DCRIT=0.20 and VISC2=1.0                                           
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      411  
+      412  ! Minimum depth for wetting and drying.
+      413  
+      414 -       DCRIT == 0.75d0                     ! m, default is 0.1
+          -0d0.                                                          
+      414 +       DCRIT == 0.20d0                     ! m, default is 0.1
+          +0d0.                                                          
+      415  
+      416  ! Various parameters.
+      417  
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      322  ! Harmonic/biharmonic, horizontal viscosity coefficient for no
+           nlinear model
+      323  ! and adjoint-based algorithms: [Ngrids].
+      324  
+      325 -       VISC2 == 0.0d0                           ! m2/s        
+      325 +       VISC2 == 1.0d0                           ! m2/s        
+      326         VISC4 == 0.0d0                           ! m4/s
+      327  
+      328      ad_VISC2 == 0.0d0                           ! m2/s
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● One catch: VISC2 in the .in file only takes effect if horizontal viscosity is
+  compiled in — and it isn't. roms_ecb.h:65 has:
+  #undef  UV_VIS2           /*Explicit horizontal viscosity.*/
+  So setting VISC2=1.0 in roms_cb600m.in right now is a no-op — the momentum
+  viscosity term isn't in the compiled code at all. (By contrast, TS_DIF2 is
+  defined, which is why your TNU2 values for tracers are real.)
+
+● User answered Claude's questions:
+  ⎿  · VISC2 needs UV_VIS2 enabled in roms_ecb.h (recompile) to actually do 
+     anything. How do you want to proceed? → Skip viscosity for now, test DCRIT 
+     fix alone
+
+● Good call — faster iteration. DCRIT=0.20 is applied and active (no CPP flag
+  needed for wetting/drying). VISC2=1.0 is left in the .in file but is currently
+  inert since UV_VIS2 isn't compiled in — we can revisit that later if the
+  DCRIT fix alone doesn't fully resolve the blowup. Resubmit whenever you're
+  ready.
+
+✻ Cogitated for 30s
+
+❯ I reran and it failed with output file roms.o6836631, help check              
+
+  Ran 4 shell commands (ctrl+o to expand)
+
+● This is a different, more structural issue than the last one. Let me show you
+  the geometry — I mapped the land/sea mask around the blow-up path (the model
+  walked along a chain of masked land points at the exact bathymetry fill value
+  0.751 m, tracing where the instability grew step-by-step):
+
+  #####......##################################
+  #####.......#################################
+  ######......#################################
+  ######......#################################
+  #####........################################
+  ####.........################################
+  ###..........################################
+  (#=land, .=water — this is a real tidal creek/channel, only 2–5 grid cells 
+  wide, snaking through mostly-land terrain, with depths down to 0.75 m.)
+
+  Diagnosis: at 600 m resolution, this channel is barely resolved. Narrow,
+  twisting channels like this are a classic ROMS instability source — strong
+  velocity gradients across only a couple of grid cells, with essentially no
+  numerical damping to control grid-scale noise. The DCRIT fix (last time)
+  helped — this blow-up is later and milder (MaxSpeed=27 vs 55 m/s, and it took
+  the same ~104 minutes to develop) — but it happened in a different narrow
+  channel elsewhere in the domain, meaning DCRIT alone didn't address the
+  underlying cause: these thin channels have zero horizontal viscosity to damp
+  them.
+
+  This is exactly the scenario we deferred VISC2/UV_VIS2 for. I'd now recommend
+  actually enabling it:
+
+● User answered Claude's questions:
+  ⎿  · Narrow, poorly-resolved tidal channels (2-5 cells wide, h~0.75m) keep 
+     triggering blow-ups with zero horizontal viscosity to damp them. Enable 
+     UV_VIS2 now (VISC2=1.0 is already set in the .in file, just inert)? → Yes, 
+     enable UV_VIS2 and recompile
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(roms_ecb.h)
+  ⎿  Added 1 line, removed 1 line
+      62  #define DJ_GRADPS
+      63  #define MASKING
+      64  #define CURVGRID          /*Activates wind rotation.*/
+      65 -#undef  UV_VIS2           /*Explicit horizontal viscosity.*/   
+      65 +#define UV_VIS2           /*Explicit horizontal viscosity.*/   
+      66  #ifdef  UV_VIS2
+      67  # define MIX_S_UV         /*`Horizontal' defined as `along topo
+          -following levels'*/
+      68  #endif
+
+● UV_VIS2 (and MIX_S_UV) enabled in roms_ecb.h. VISC2=1.0 in roms_cb600m.in is
+  already set from before, so it'll take effect once compiled. Run
+  build_roms.csh to recompile romsM, then resubmit.
+
+✻ Brewed for 1m 15s
+❯ I recompiled and reran and it failed again with output file roms.o6837340,    
+  help check it.                                                                
+
+  Ran 6 shell commands (ctrl+o to expand)
+
+● Update: VISC2=1.0 made essentially no difference — same blow-up step (825),
+  same MaxSpeed=27, and the flagged cell (308,497,20) is nearly identical
+  between the two runs. That's a useful negative result, and worth understanding
+  why.
+
+  Looking more closely at the diagnostic columns (Cu Cv Cw are Courant numbers,
+  not raw velocities): at the flagged point, Cu=0.22, Cv=0.93 — both fine — but
+  Cw=25.7, a vertical-advection Courant number of 25, wildly unstable.
+  Horizontal viscosity (VISC2) damps horizontal shear; it does nothing for a
+  vertical-Courant blow-up, which is exactly why enabling it changed nothing.
+
+  I checked bathymetry/mask around (308,497) — same story as the channel from
+  last time:
+  h ≈ 0.75–2.5 m, only 1–3 grid cells wide, winding through mostly-land terrain
+  This is now the third distinct ultra-shallow, ultra-narrow marsh/tidal-creek
+  location to trigger this exact failure mode, always ~100–105 minutes into the
+  run. These channels are fundamentally under-resolved at 600 m grid spacing — a
+  handful of cells this thin will always have marginal vertical-Courant
+  behavior regardless of horizontal viscosity tuning.
+
+  (I also checked whether misconfigured river-source forcing could be injecting
+  flow at these points — it isn't: LuvSrc=F, LwSrc=F, LtracerSrc=F,F, so point
+  sources are fully disabled. Worth noting separately: your river forcing file
+  riv_chesbay336x564x20_v20250625.nc is sized for the old 336×564 grid, not your
+  current 516×836 grid — same class of mismatch as the tides file. It's inert
+  now, but will bite you later if you ever turn river forcing on.)
+
+  Fixing a Cw≈25 Courant number honestly would require cutting DT by ~25×, which
+  is impractical for the whole domain just to accommodate a few isolated marsh
+  cells. The standard, practical fix is instead to clean up the land/sea mask —
+  filling in these single/double-cell-wide channels (converting them to land) so
+  the grid doesn't try to resolve flow it physically can't represent at this
+  resolution.
+
+  This is a bigger structural change than the parameter tweaks so far, so I'd
+  like your input before doing it:
+
+● User answered Claude's questions:
+  ⎿  · The recurring blow-ups trace to several ultra-narrow (1-3 cell), 
+     ultra-shallow (<2.5m) marsh channels that are fundamentally under-resolved 
+     at 600m. How do you want to handle this? → Reduce DT globally instead
+
+● Before I apply this — the numbers came out worse than what I quoted when
+  presenting the option, so I want to flag it clearly.
+
+  To bring Cw from 25.7 down to a safe margin (~0.5) at the point we actually
+  observed, DT needs to shrink by about 60× (60s → ~1.0s), not the 10–25× I
+  estimated earlier. That also means NTIMES needs to scale up ~60× (41760 →
+  ~2,505,600) to cover the same 29 simulated days, which multiplies wall-clock
+  cost roughly 60× as well — your current PBS request is only walltime=02:00:00,
+  which won't come close to covering that.
+
+  There's also no guarantee Cw=25.7 is the worst case in the whole domain — it's
+  just the worst value we happened to see before the run aborted. Other
+  unexercised thin channels elsewhere in the grid could require an even smaller
+  DT.
+
+● User declined to answer questions
+  ⎿  · DT needs to shrink ~60x (not 10-25x as I first estimated) to make this 
+     specific blow-up point stable, multiplying run cost ~60x, and there's no 
+     guarantee it's the worst case in the grid. How do you want to proceed? (Go 
+     ahead with ~60x DT reduction anyway / Switch to masking out the problem 
+     channels instead / Reduce DT by a smaller, intermediate amount)
+
+● What would you like to clarify?
+
+✻ Sautéed for 3m 35s
+
+❯ let's stop here for the day and export our conversation so later I can take a 
+  close look.                                                                   
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+✻ Worked for 1m 18s
+
+❯ /export claudeCodeConversation_20260721.txt                                   
+  ⎿  Conversation exported to: /glade/work/lgchen/project/ChesROMS/ChesROMS_VIMS
+     _noECB/chesbay600m/claudeCodeConversation_20260721.txt
+
+❯ /compact                                                                      
+
+❯ /compact                                                                      
+  ⎿  Compacted (ctrl+o to see full summary)
+  ⎿  Read chesbay600m/roms_ecb.h (213 lines)
+  ⎿  Referenced file chesbay600m/roms_cb600m.in
+
+❯ From your suggestions, I'd choose to reduce DT by a smaller intermediate      
+  amount, show to how to do it.                                                 
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Reducing DT by 5x (60s → 12s) is a reasonable intermediate step — enough to
+  meaningfully cut the vertical Courant number without the ~60x cost blowup of a
+  full fix. It brings Cw from 25.7 down to ~5.1 (still above the strict
+  stability limit of 1, so it's not guaranteed to survive the same spot, but
+  it's a real test of whether a moderate step helps, at 5x the compute cost
+  instead of 60x). I'm scaling NDTFAST down proportionally (40→8) to keep DTFAST
+  fixed at 1.5s — that barotropic sub-timestep was already confirmed stable, so
+  no need to touch it. All the other step-count parameters (NTIMES, NRST, NSTA,
+  NHIS, NQCK, NAVG, NDEFAVG, NDIA, NDEFDIA) are expressed in units of timesteps
+  for fixed physical durations (e.g. "3hrs @DT=60s"), so they all need ×5 to
+  represent the same wall-clock/simulation durations at the new DT.
+
+● Update(roms_cb600m.in)
+  ⎿  Added 3 lines, removed 3 lines
+      234  
+      235  !     NTIMES ==  525600 ! Jan.1,1985 to Jan. 1,1986 @DT=60s.
+      236  !     NTIMES ==  44640  ! Jan.1,1994 to Feb. 1,1994 @DT=60s.
+      237 -      NTIMES ==  41760  ! Jan.1,1994 to Jan. 30,1994 @DT=60s. 
+          -29 days                                                       
+      238 -          DT == 60.0d0                                        
+      239 -     NDTFAST ==  40                                           
+      237 +      NTIMES ==  208800 ! Jan.1,1994 to Jan. 30,1994 @DT=12s. 
+          +29 days                                                       
+      238 +          DT == 12.0d0                                        
+      239 +     NDTFAST ==   8                                           
+      240  
+      241  ! Number of timesteps for computing observation impacts during
+            the
+      242  ! analysis-forecast cycle.
+● Update(roms_cb600m.in)
+  ⎿  Added 2 lines, removed 2 lines
+      264  
+      265         NRREC == 0
+      266     LcycleRST == T
+      267 -        NRST == 1440 ! 24 hours @ DT=60s.                     
+      268 -        NSTA ==  180 !  3 hours @ DT=60s.                     
+      267 +        NRST == 7200 ! 24 hours @ DT=12s.                     
+      268 +        NSTA ==  900 !  3 hours @ DT=12s.                     
+      269          NFLT == 1
+      270         NINFO == 1
+      271  
+
+● Update(roms_cb600m.in)
+  ⎿  Added 6 lines, removed 6 lines
+      275       LDEFOUT == T
+      276  !       NHIS == 525600 ! 365days @DT=60s.
+      277  !       NHIS == 44640  ! 31days @DT=60s.
+      278 -        NHIS == 41760  ! 29days @DT=60s.                      
+      278 +        NHIS == 208800 ! 29days @DT=12s.                      
+      279       NDEFHIS ==      0 ! One single HIS file per calculation.
+      280          NXTR == 72
+      281       NDEFXTR == 0
+      282 -        NQCK ==    180 ! 3hrs    @DT=60s.                     
+      282 +        NQCK ==    900 ! 3hrs    @DT=12s.                     
+      283       NDEFQCK ==      0 ! One single QCK file per calculation.
+      284        NTSAVG ==      1
+      285 -        NAVG ==   1440 ! 1day    @DT=60s.                     
+      286 -     NDEFAVG ==   1440 ! 1day    @DT=60s.                     
+      285 +        NAVG ==   7200 ! 1day    @DT=12s.                     
+      286 +     NDEFAVG ==   7200 ! 1day    @DT=12s.                     
+      287        NTSDIA ==      1
+      288 -        NDIA ==   1440 ! 1day    @DT=60s; must be >0 if DIAGNO
+          -STICS_BIO is defined                                          
+      289 -     NDEFDIA ==   1440 ! 1day    @DT=60s.                     
+      288 +        NDIA ==   7200 ! 1day    @DT=12s; must be >0 if DIAGNO
+          +STICS_BIO is defined                                          
+      289 +     NDEFDIA ==   7200 ! 1day    @DT=12s.                     
+      290  
+      291  ! Output tangent linear and adjoint models parameters.
+      292  
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● All updated in roms_cb600m.in:
+
+  ┌──────────────┬─────────────┬────────────────────────────────────────────┐
+  │    Param     │    Old      │           New (DT=12s, 5x finer)           │
+  │              │  (DT=60s)   │                                            │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ DT           │ 60.0        │ 12.0                                       │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NDTFAST      │ 40          │ 8 (keeps DTFAST=1.5s, already proven       │
+  │              │             │ stable)                                    │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NTIMES       │ 41760       │ 208800                                     │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NRST         │ 1440        │ 7200                                       │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NSTA         │ 180         │ 900                                        │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NHIS         │ 41760       │ 208800                                     │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NQCK         │ 180         │ 900                                        │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NAVG/NDEFAVG │ 1440        │ 7200                                       │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NDIA/NDEFDIA │ 1440        │ 7200                                       │
+  └──────────────┴─────────────┴────────────────────────────────────────────┘
+
+  No CPP/recompile needed — this is purely a .in change, so you can resubmit
+  directly.
+
+  One thing to flag: the blow-up previously hit at simulated step 825 (~104 min
+  in), so this reduction doesn't guarantee survival — Cw drops from 25.7 to only
+  ~5.1, still above the nominal stability limit of 1. It's a real test rather
+  than a guaranteed fix. Also note walltime is still 02:00:00 in run_roms.tcsh
+  (line 6) — since each step now covers 12s instead of 60s, reaching the same
+  simulated point takes 5x more steps/wall-clock, so if it survives past where
+  it died before, you may want to bump that walltime up before the model
+  exhausts the 2-hour window.
+
+✻ Cooked for 1m 34s
+
+❯ I reran and it failed again with output file roms.o6870019, help check and    
+  recommend how to fix it.                                                      
+
+  Searched for 5 patterns, ran 4 shell commands (ctrl+o to expand)
+
+● This time the model got much further — it survived to 34 hours of simulated 
+  time (step 11605) before failing, versus only ~104 minutes before the DT
+  reduction. So the DT=12s change substantially helped. But it hit a new,
+  different failure mode.
+
+  What happened: REASON: MaxDensity = 2.3E+02 at grid point (289,001,01) —
+  density became unphysical (not a NaN/Courant blow-up this time). I checked
+  that location in the grid:
+  - j=1 (eta index 0) is exactly the south open boundary row
+  - h = 2.48 m — extremely shallow, k=1 is the bottom sigma layer
+  - The vertical Courant number there was still Cw=6.45 right before it died —
+  elevated, though nowhere near the 25.7 seen before
+
+  I then checked the whole south boundary row: it spans from very deep water (up
+  to 3290m) down to 84 wet cells shallower than 5m, 49 shallower than 3m, out
+  of 393 wet boundary points. So the open boundary line itself cuts straight
+  through shallow marsh/wetland terrain. That's structurally fragile —
+  Flather/Radiation/Nudging OBCs assume reasonably well-behaved offshore water,
+  and forcing them at ~2.5m-deep marsh edge cells is a likely source of exactly
+  this kind of density blow-up, independent of the Courant-number issue we
+  already improved.
+
+● User answered Claude's questions:
+  ⎿  · How do you want to address the new density blow-up at the shallow south 
+     open-boundary cell? → Reduce DT further
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(roms_cb600m.in)
+  ⎿  Added 3 lines, removed 3 lines
+      234  
+      235  !     NTIMES ==  525600 ! Jan.1,1985 to Jan. 1,1986 @DT=60s.
+      236  !     NTIMES ==  44640  ! Jan.1,1994 to Feb. 1,1994 @DT=60s.
+      237 -      NTIMES ==  208800 ! Jan.1,1994 to Jan. 30,1994 @DT=12s. 
+          -29 days                                                       
+      238 -          DT == 12.0d0                                        
+      239 -     NDTFAST ==   8                                           
+      237 +      NTIMES ==  417600 ! Jan.1,1994 to Jan. 30,1994 @DT=6s. 2
+          +9 days                                                        
+      238 +          DT == 6.0d0                                         
+      239 +     NDTFAST ==   4                                           
+      240  
+      241  ! Number of timesteps for computing observation impacts during
+            the
+      242  ! analysis-forecast cycle.
+
+● Update(roms_cb600m.in)
+  ⎿  Added 2 lines, removed 2 lines
+      264  
+      265         NRREC == 0
+      266     LcycleRST == T
+      267 -        NRST == 7200 ! 24 hours @ DT=12s.                     
+      268 -        NSTA ==  900 !  3 hours @ DT=12s.                     
+      267 +        NRST == 14400 ! 24 hours @ DT=6s.                     
+      268 +        NSTA ==  1800 !  3 hours @ DT=6s.                     
+      269          NFLT == 1
+      270         NINFO == 1
+      271  
+
+● Update(roms_cb600m.in)
+  ⎿  Added 6 lines, removed 6 lines
+      275       LDEFOUT == T
+      276  !       NHIS == 525600 ! 365days @DT=60s.
+      277  !       NHIS == 44640  ! 31days @DT=60s.
+      278 -        NHIS == 208800 ! 29days @DT=12s.                      
+      278 +        NHIS == 417600 ! 29days @DT=6s.                       
+      279       NDEFHIS ==      0 ! One single HIS file per calculation.
+      280          NXTR == 72
+      281       NDEFXTR == 0
+      282 -        NQCK ==    900 ! 3hrs    @DT=12s.                     
+      282 +        NQCK ==    1800 ! 3hrs    @DT=6s.                     
+      283       NDEFQCK ==      0 ! One single QCK file per calculation.
+      284        NTSAVG ==      1
+      285 -        NAVG ==   7200 ! 1day    @DT=12s.                     
+      286 -     NDEFAVG ==   7200 ! 1day    @DT=12s.                     
+      285 +        NAVG ==   14400 ! 1day    @DT=6s.                     
+      286 +     NDEFAVG ==   14400 ! 1day    @DT=6s.                     
+      287        NTSDIA ==      1
+      288 -        NDIA ==   7200 ! 1day    @DT=12s; must be >0 if DIAGNO
+          -STICS_BIO is defined                                          
+      289 -     NDEFDIA ==   7200 ! 1day    @DT=12s.                     
+      288 +        NDIA ==   14400 ! 1day    @DT=6s; must be >0 if DIAGNO
+          +STICS_BIO is defined                                          
+      289 +     NDEFDIA ==   14400 ! 1day    @DT=6s.                     
+      290  
+      291  ! Output tangent linear and adjoint models parameters.
+      292  
+
+● Applied another 2x reduction: DT 12s→6s, NDTFAST 8→4 (keeps DTFAST=1.5s, the
+  proven-stable barotropic step), and scaled
+  NTIMES/NRST/NSTA/NHIS/NQCK/NAVG/NDEFAVG/NDIA/NDEFDIA all ×2 to preserve the
+  same physical durations. That's a 10x total reduction from the original
+  DT=60s.
+
+  One flag before you resubmit: walltime is still 02:00:00 in run_roms.tcsh, and
+  this run now needs 2x the steps of the last one (which itself needed ~1h48m
+  of PBS time to reach 34 simulated hours before failing, per the wall-clock
+  trend). If it survives past where it died last time, it risks running out of
+  walltime rather than failing physically — you may want to bump that up (e.g.
+  to 4-6 hours) before resubmitting.
+
+✻ Cogitated for 2m 44s
+
+❯ I reran and it failed with output file roms.o6871137, help check and suggest  
+  how to fix it.                                                                
+
+  Searched for 1 pattern, listed 1 directory, ran 6 shell commands (ctrl+o to expand)
+● I found the actual root cause — it's not a numerical Courant problem, it's a
+  data problem in the boundary forcing itself.
+
+  What I checked: Both failures (roms.o6870019 and roms.o6871137) died 2-7 hours
+  after the same event: the boundary file's daily record transition from
+  1994-01-01→1994-01-02. Halving DT again only bought ~21% more simulated time
+  (1.43→1.73 days) instead of the ~2x you'd expect if this were a Courant/CFL
+  issue — a sign this isn't timestep-driven.
+
+  What's actually in bry_199401.nc at the shallow south-boundary stretch (h ≈
+  2-13m, xi≈280-299, the exact area of both blow-ups): at grid point xi=288
+  (h=2.48m), the boundary temperature/salinity profile does this day-by-day:
+
+  ┌───────────┬─────────────┬────────────────────┬───────────┬──────────┐
+  │ Day (Jan) │  Surface T  │      Bottom T      │ Surface S │ Bottom S │
+  ├───────────┼─────────────┼────────────────────┼───────────┼──────────┤
+  │ 1         │ 13.8°C      │ 14.5°C             │ 33.4      │ 33.7     │
+  ├───────────┼─────────────┼────────────────────┼───────────┼──────────┤
+  │ 2         │ 17.8°C      │ 17.8°C             │ 35.9      │ 35.9     │
+  ├───────────┼─────────────┼────────────────────┼───────────┼──────────┤
+  │ 3         │ 16.8°C      │ 16.8°C             │ 35.6      │ 35.6     │
+  ├───────────┼─────────────┼────────────────────┼───────────┼──────────┤
+  │ 4         │ 16.7°C      │ 16.7°C             │ 35.0      │ 35.0     │
+  ├───────────┼─────────────┼────────────────────┼───────────┼──────────┤
+  │ 5         │ 14.7°C      │ 14.7°C             │ 34.0      │ 34.0     │
+  ├───────────┼─────────────┼────────────────────┼───────────┼──────────┤
+  │ 6         │ 13.7-14.0°C │ back to stratified │ 33.0-33.1 │          │
+  └───────────┴─────────────┴────────────────────┴───────────┴──────────┘
+
+  A ~4°C, ~2.5 psu jump in a single day, with the water column instantly going
+  from mildly stratified to perfectly vertically uniform, across the entire
+  shallow stretch (I checked xi=280 through 299, same pattern everywhere) —
+  that's not a plausible one-day physical transition in 2-13m-deep coastal
+  water. This looks like a data/interpolation artifact from the source
+  reanalysis (Glorys12v1) in these very shallow cells, which then gets imposed
+  on the model via the RadNud tracer boundary condition and destabilizes the
+  density field right there.
+
+  Given this, further DT reduction won't fix it — the forcing data itself is the
+  problem. I'd recommend going back to the mask the shallow south-boundary 
+  cells option from before, since it directly removes the exact area producing
+  the bad forcing. Want me to go ahead and do that (closing wet cells with h
+  below some threshold, e.g. 3-5m, along the open boundaries), or would you
+  rather first look at smoothing/clipping the anomalous BRY values in that
+  stretch instead of closing the cells?
+
+✻ Cooked for 2m 10s
+
+
+Resume this session with:
+claude --resume dcb074ae-2b94-4afb-96e9-30960dce71dd

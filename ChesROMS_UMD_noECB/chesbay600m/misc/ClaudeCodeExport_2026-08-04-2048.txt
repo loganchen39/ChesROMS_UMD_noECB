@@ -1,0 +1,1092 @@
+╭─── Claude Code v2.1.221 ─────────────────────────────────────────────────────╮
+│                                                    │ Tips for getting        │
+│                 Welcome back Logan!                │ started                 │
+│                                                    │ Run /init to create a … │
+│                       ▐▛███▜▌                      │ ─────────────────────── │
+│                      ▝▜█████▛▘                     │ What's new              │
+│                        ▘▘ ▝▝                       │ [VSCode] Added Focus v… │
+│  Sonnet 5 · Claude Pro · ligang.chen@gmail.com's   │ Added `mode: "mask"` f… │
+│  Organization                                      │ Added warnings to `cla… │
+│    /…/ChesROMS/ChesROMS_VIMS_noECB/chesbay600m     │ /release-notes for more │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+   Tackle your toughest work with Opus 5. Switch anytime with /model.
+
+❯ My last Claude Code use was dead and I have saved the export at file          
+  chesbay600m/ClaudeCodeExport_2026-08-04-1252.txt, read it and start from      
+  there.                                                                        
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Reading the export file now — it's about 1600 lines.
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● The export ends right after applying the east-boundary momentum-nudging fix
+  (RadNud + M3NUDG=30d, matching TNUDG). I found a newer output file,
+  roms.o7010978 (Aug 4, 11:40), that isn't discussed in the transcript — likely
+  the result of resubmitting with that fix. Let me check it.
+
+  Searched for 3 patterns, ran 4 shell commands (ctrl+o to expand)
+
+● I've read the export and picked up the thread. Here's where things stood, plus
+  what I found by checking the run that happened after the export ended.
+
+  Where the transcript left off: After many rounds of chasing a salt_sur
+  freshening bug at the open ocean boundary (south/east), the last fix applied
+  was:
+  - LBC(isUvel)/LBC(isVvel): Rad → RadNud
+  - M3NUDG: 0.0d0 → 30.0d0 (matching TNUDG=30d, giving a gentle ~1.25-day inflow
+  timescale with OBCFAC=24)
+  - Lm3CLM: F → T, LnudgeM3CLM: F → T
+
+  This was meant to fix a systematic runaway current found along the entire east
+  boundary (not just the shallow Oregon Inlet corner), after two prior nudging
+  attempts (too weak at 30d/1.25day, too strong at 1d/1hr — the latter caused a
+  shock) had failed.
+
+  New finding — the run after that fix also failed. I checked roms.o7010978 (Aug
+  4, 11:40 — not discussed in the export) and it currently sits on disk
+  matching that config. It:
+  - Ran ~34.3 hours of simulated time (to 1994-01-04 13:46, step 51463) before
+  MAIN: Abnormal termination: BLOWUP. REASON: MaxDensity = 2.0E+02
+  - That's essentially the same failure point (~day 1.4) as the earlier
+  over-strong-nudging run, not an improvement — so even the "properly tuned"
+  gentle momentum nudging on RadNud didn't fix it.
+
+  This means all three tuning axes tried so far (DT, TNU2, and now three
+  different nudging strengths) fail at nearly the same simulated day, which
+  strengthens the case that the still-unaddressed structural fix — masking the
+  ~125-cell Oregon Inlet shallow patch that kept showing up as the instability's
+  origin point — may be necessary, possibly combined with the east-boundary
+  momentum nudging rather than instead of it.
+
+  How would you like to proceed?
+
+● User answered Claude's questions:
+  ⎿  · The gentle momentum-nudging fix (RadNud, M3NUDG=30d) still blew up at 
+     nearly the same simulated day (~1.4) as before. How do you want to proceed?
+     → Investigate further first
+
+  Ran 6 shell commands (ctrl+o to expand)
+
+● Background command "Compare MaxDensity message format between old and new
+logs, check for location info" failed with exit code 144
+
+● That background find / was too broad and got killed — not a concern, just
+  moving forward with a more targeted check using the restart file directly.
+
+  Listed 1 directory, ran 2 shell commands (ctrl+o to expand)
+
+● Investigated further — I pulled the actual salt_sur field record-by-record
+  from roms_qck.nc for this run (roms.o7010978) rather than relying on the log's
+  Courant-number diagnostic (which was tracking a different, incidental
+  location).
+
+  Confirmed: the blowup still originates at the same south-boundary Oregon Inlet
+  corner, even with the "properly tuned" RadNud + M3NUDG=30d momentum nudging
+  in place:
+
+  - Records 0–5 (first ~1.1 days): mild, spreading anomalies, nothing alarming
+  yet.
+  - Record 6 onward (day 1.25+): salt_sur explodes specifically at eta≈1–8, 
+  xi≈282–291 — min drops to -75.9 psu, max hits 143.7 psu by the time it dies.
+  That's the exact same corner flagged repeatedly across every earlier attempt
+  (DT reduction, TNU2, weak/strong/moderate nudging).
+  - I checked the bathymetry there: h ranges ~2–15m right up to the open
+  boundary row (eta=0), with a masked barrier-island tip immediately adjacent.
+  Critically, DCRIT=0.75 doesn't touch this stretch at all — nearly every wet
+  cell there has h well above 0.75m, so the wetting/drying fix never engaged
+  here. That explains why it didn't help.
+  - The location I got from the log's (i,j,k) Courant-diagnostic table
+  (484,764,20) turned out to be an unrelated shelf point off New Jersey (h=25m,
+  unremarkable) — that's just wherever max Cw happened to be at the last printed
+  step, not the blowup site. Not useful for diagnosis; the qck.nc field trace
+  is the reliable signal.
+  - One secondary, weaker anomaly also showed up in the first day near a marshy
+  notch further north (~39.5°N, off NJ/Delaware Bay mouth, h≈1.4m) — separate
+  from the main event, worth keeping in mind but not the primary driver.
+
+  Bottom line: across five different fix attempts now (Rad-only, RadNud@1.25d,
+  RadNud@1hr, RadNud@10hr, RadNud@1.25d-with-Lm3CLM), the blowup keeps
+  originating at this same ~10×15-cell south-boundary corner. Tuning the
+  boundary condition type/strength hasn't changed where or roughly when it
+  starts. That's a strong signal the fix needs to be structural (masking that
+  corner) rather than another parameter adjustment.
+
+  Want me to proceed with masking that corner now (xi≈278–295, eta≈0–11, h below
+  ~15m) in grid_UMD.nc, keeping the current RadNud/M3NUDG=30d config otherwise?
+
+✻ Churned for 5m 52s
+
+❯ My question is, would this masking solve the problem of dropping salt_sur and 
+  other variables' problem as shown in roms_qck.nc? If not, can we try to       
+  solve this problem first?                                                     
+
+  Ran 2 shell commands (ctrl+o to expand)
+● Good question — let me check that directly rather than assume. I'll compare
+  the east-boundary behavior (away from Oregon Inlet) across the Rad-only run
+  and the RadNud+nudging run to see whether nudging actually fixed that separate
+  problem, or whether it's still broken independent of Oregon Inlet.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Confirmed — the east-boundary decline is a separate, more fundamental problem,
+  and no, masking Oregon Inlet would not touch it. Here's why: this decline is
+  smooth and uniform across the entire east boundary (eta 50 through 450),
+  starts within the very first 3 hours of the run (well before Oregon Inlet even
+  begins its separate, noisy blowup at day 1.25), and drops steadily from ~36
+  psu to ~10 psu in just 3 days — a completely different signature from Oregon
+  Inlet's violent noise. It's present in every config tried, including the
+  RadNud+nudging "fix." This is the real problem to chase.
+
+  Let me check whether the model is actually tracking the prescribed boundary
+  data or diverging from it — that will tell us if this is a forcing-data issue
+  or an OBC-implementation bug.
+
+  Searched for 1 pattern, ran 6 shell commands (ctrl+o to expand)
+
+● This is a very clean, useful signature. Let me pin it down further — checking
+  whether it's a surface-specific quirk in the boundary condition code itself.
+
+  Searched for 3 patterns, listed 1 directory, ran 6 shell commands (ctrl+o to expand)
+
+● Background command "Locate the tracer boundary condition source file" failed
+with exit code 144
+
+● I checked three things to pin this down definitively, and I can now rule out
+  two of the leading suspects and identify what's actually happening.
+
+  Ruled out:
+  - BRY forcing data — the east-boundary salinity in bry_199401.nc stays
+  essentially flat (34–36.4 psu) through Jan 1–4, so the input data is fine,
+  confirming your earlier read that "the boundary file seems ok."
+  - Surface freshwater flux (rain/evaporation) — I checked the actual
+  evaporation/rain fields in the average output: magnitudes are ~1e-4 to 1e-3
+  kg/m²/s, which over a day changes salinity by a small fraction of a psu —
+  nowhere close to the 15–20 psu single-day drops we're seeing. Not the cause.
+
+  What I found instead — a depth-dependent split that points straight at the 
+  tracer boundary condition:
+
+  I compared salt_bot vs salt_sur at the same east-boundary points over the same
+  3 days:
+  - Bottom stays sane and close to BRY the entire time (~35–39 psu, matching the
+  prescribed data).
+  - Surface collapses immediately — already down to 30–33 psu within the first
+  24 hours, 15–17 psu by day 3 — at the exact same locations.
+
+  I then read the actual boundary-condition source (t3dbc_im.F). The key
+  mechanism: ROMS classifies each boundary cell, at each timestep, as "inflow"
+  or "outflow" based on the local tracer gradient trend, and uses a different
+  nudging strength for each — Tobc_in = OBCFAC × Tobc_out, where Tobc_out is set
+  directly by TNUDG (currently 30 days). With OBCFAC=24, inflow gets a
+  reasonably strong ~1.25-day correction, but outflow gets the full, 
+  nearly-uncorrected 30-day timescale — over a 3-day test, that's essentially no
+  restoring force at all.
+
+  That asymmetry explains the surface/bottom split cleanly: if the surface at
+  the boundary has a real or transient outward-classified flow (plausible — it's
+  the layer most exposed to wind forcing) while the bottom is
+  inflow-classified, the surface would just drift freely via pure radiation
+  extrapolation with nothing pulling it back to the true offshore value, while
+  the bottom stays anchored. I also checked transport (Huon) at these cells —
+  it's large and sign-flipping between averaging periods, consistent with a
+  noisy, weakly-constrained surface boundary rather than a steady real current.
+
+  Importantly: TNUDG/OBCFAC (the tracer nudging) has stayed essentially fixed at
+  30d/24 across nearly every experiment this session — all our tuning was on
+  M3NUDG (momentum). We've never actually tested strengthening tracer nudging on
+  its own.
+
+  Proposed next step: decouple and strengthen tracer nudging specifically — e.g.
+  TNUDG: 30d → 3d (10x stronger outflow, ~3-day correction instead of ~30)
+  combined with OBCFAC: 24 → 3 (so inflow lands at ~1-day, similar to the
+  1.25-day value we already confirmed doesn't shock the domain, rather than
+  jumping to the ~7.5-hour inflow that would result from keeping OBCFAC=24).
+  This directly targets the weak-outflow gap without repeating the
+  over-strong-inflow shock we saw before.
+
+  Want me to apply that (TNUDG=3.0d0, OBCFAC=3) and leave momentum nudging
+  as-is, so we can test tracer nudging in isolation?
+
+✻ Baked for 8m 38s
+
+❯ Yes, apply it and let's resubmit.                                             
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Let me double-check whether OBCFAC is shared across tracers and momentum in
+  the source, since changing it could inadvertently weaken the momentum nudging
+  we already tuned.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Before applying — I caught an issue with my own proposed fix while
+  implementing it. I checked inp_par.F and confirmed OBCFAC is a single shared 
+  scalar used for tracers, M2, and M3 alike (Tobc_in=obcfac(ng)*Tnudg,
+  M3obc_in=obcfac(ng)*M3nudg, same obcfac(ng)). So reducing OBCFAC 24→3 as I
+  proposed would also cut the momentum inflow nudging strength we already
+  calibrated (from M3NUDG=30d/OBCFAC=24 ≈ 1.25-day inflow, down to 30d/3 ≈
+  10-day inflow) — undoing the fix that stopped the earlier systematic
+  east-boundary momentum runaway. Not what we want.
+
+  Revised plan: leave OBCFAC=24 untouched (preserves momentum calibration
+  exactly), and only change TNUDG. But going all the way to TNUDG=3d with OBCFAC
+  still at 24 would push tracer inflow down to 3/24 ≈ 3 hours — uncomfortably
+  close to the ~1-hour momentum inflow timescale that caused the earlier
+  shock/ringing instability, and we have no precedent that tracers tolerate that
+  better than momentum did. So I'd rather step more conservatively: TNUDG: 30d 
+  → 10d — that's still a 3x stronger outflow (10 days instead of 30,
+  meaningfully less "free-floating" than before) while inflow lands at 10/24 ≈
+  10 hours, comfortably between the proven-safe 1.25-day case and the
+  shock-prone ~1-hour case.
+
+● User answered Claude's questions:
+  ⎿  · OBCFAC turns out to be shared between tracers and momentum, so my 
+     original plan (TNUDG=3d + OBCFAC=3) would accidentally weaken the 
+     momentum-nudging fix we already validated. How do you want to proceed? → 
+     Conservative: TNUDG=10d only
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      492  ! Nudging/relaxation time scales, inverse scales will be compu
+           ted
+      493  ! internally, [1:Ngrids].
+      494  
+      495 -       TNUDG == 30.0d0                     ! days, value for t
+          -he outflow.                                                   
+      495 +       TNUDG == 10.0d0                     ! days, value for t
+          +he outflow.                                                   
+      496         ZNUDG == 0.0d0                      ! days
+      497        M2NUDG == 0.0d0                      ! days
+      498        M3NUDG == 30.0d0                     ! days, value for t
+           he outflow.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Applied: TNUDG: 30.0d0 → 10.0d0, M3NUDG and OBCFAC left untouched at
+  30.0d0/24.0d0. Net effect:
+
+  - Tracer outflow nudging: 30d → 10d (3x stronger; previously near-zero
+  correction, now a meaningful pull toward BRY)
+  - Tracer inflow nudging: 1.25d → ~10hr (10/24)
+  - Momentum nudging (M3NUDG=30d, OBCFAC=24 → ~1.25d inflow): unchanged from the
+  already-tested, non-shocking value
+
+  This is a pure .in file change — no recompile needed. Go ahead and resubmit
+  whenever ready, and send me the output filename to check.
+
+✻ Cooked for 1m 8s
+
+❯ /export ClaudeCodeExport_2026-08-04-1842.txt                                  
+  ⎿  Conversation exported to: /glade/work/lgchen/project/ChesROMS/ChesROMS_VIMS
+     _noECB/chesbay600m/ClaudeCodeExport_2026-08-04-1842.txt
+
+❯ if I change the model to Opus 5, it will know all of your diagnostic history, 
+  right?                                                                        
+● Yes — switching with /model only changes which model processes the next turn;
+  the conversation history stays intact and gets passed along, so Opus 5 would
+  see this entire session's context, including all the diagnostic findings
+  (Oregon Inlet, the east-boundary surface/bottom split, the OBCFAC-is-shared
+  discovery, the TNUDG=10d change just applied). It's the same conversation, not
+  a fresh start.
+
+  One caveat: if the conversation gets auto-compacted (it's summarized when it
+  grows long), Opus 5 would see that summary rather than the full verbatim
+  transcript for older parts — but the key findings should survive since they're
+  the substance of what would get preserved.
+
+✻ Churned for 8s
+
+❯ ok, I'll switch to Opus 5 now                                                 
+
+● Sounds good — the TNUDG=10d change is applied and ready to resubmit whenever
+  you get to it.
+
+✻ Sautéed for 3s
+
+❯ how to check which model I'm using?                                           
+
+● You can check the current model a couple of ways:
+  - Run /model with no arguments — it shows the currently selected model and
+  lets you change it.
+  - Look at the status line / conversation header in the Claude Code UI, which
+  typically displays the active model name.
+
+✻ Worked for 3s
+
+❯ /model                                                                        
+  ⎿  Set model to Opus 5 and saved as your default for new sessions
+
+❯ I reran with output file roms.o7015214, the same problem of salt_sur dropping 
+  fast along east and south boundaries still exists. Can you check and          
+  recommend some more effective solutions?                                      
+
+● I'll dig into this properly rather than suggest another parameter tweak — five
+  rounds of tuning have failed, which itself says the problem isn't a tunable
+  parameter.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● TNUDG=10d was confirmed active. The run reached 1994-01-02 09:15 with no
+  blowup (walltime-limited). Now let me test my top hypothesis — that the BRY
+  vertical structure is mismapped, which would explain why stronger nudging made
+  things worse.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Two things stand out already: sponge layers are completely off (LuvSponge == 
+  F, LtracerSponge == F F). Let me now test the vertical-structure hypothesis,
+  comparing BRY against the initial condition.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The vertical structure hypothesis is wrong — BRY and INI profiles match almost
+  exactly (k=0 is bottom ~34.9, k=19 is surface ~36.4, correct ordering, no
+  mismatch). Good to rule out. But this reveals something more important:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The column-mean salinity at the east boundary dropped from 35.7 → 32.0 psu in 
+  a single day. That's not vertical redistribution — to dilute a 2530 m column
+  that much you'd need ~290 m of freshwater added in 24 hours, which is
+  physically impossible from any surface flux. This is catastrophic horizontal 
+  advection, driven by the runaway currents. So the currents are the disease;
+  the salinity is the symptom.
+
+  Let me test the classic cause for a deep sigma-coordinate domain —
+  pressure-gradient error:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● rx0 = 0.200 and rx1 = 7.8 — both within accepted limits, and 0% of columns
+  exceed rx1 > 10. The grid is well-engineered, so pressure-gradient error is
+  ruled out too. Let me check the boundary forcing consistency, which is what
+  actually drives a monotonic, basin-wide acceleration:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Tides are off (#undef SSH_TIDES/UV_TIDES), so no tidal forcing — that removes
+  another suspect, though I note TIDENAME still points at the old 336x564 grid
+  file, a hint that not every input was regenerated for the enlarged domain. Let
+  me check whether the barotropic boundary data is self-consistent, since
+  Flather depends entirely on that:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● BRY data is internally consistent — ubar_east matches the depth-average of
+  u_east to 0.0008 m/s, and INI zeta (-0.53 m mean) agrees with BRY zeta (-0.44
+  m mean), so there's no barotropic shock at startup either. The input files are
+  well-built. Let me confirm how the sponge is wired in this ROMS version:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The sponge reads visc_factor/diff_factor from the grid file in this version.
+  Let me confirm the exact requirement and how it scales VISC2:
+
+  Ran 1 shell command (ctrl+o to expand)
+● Now I have something significant. Let me verify with ROMS's own startup
+  diagnostic:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● This is the finding. ROMS's own startup diagnostic confirms it exactly:
+
+  Maximum barotropic Courant Number = 6.35180593E-01
+
+  And critically — the deepest point (3290 m) sits at eta=0, xi=511: directly ON
+  the south open boundary, at the east corner. Let me confirm the spatial
+  pattern:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Found it — and it explains why five rounds of tuning all failed.
+
+  The barotropic timestep was never actually tested
+
+  ROMS's own startup diagnostic reports max barotropic Courant = 0.635. The
+  explicit LF-AM3 2D limit is ~0.89, so the model has been running the fast
+  (barotropic) mode right at the edge of stability. And the spatial distribution
+  is damning:
+
+  ┌────────────────────────────┬─────────────┬───────┐
+  │           Region           │ max Courant │ mean  │
+  ├────────────────────────────┼─────────────┼───────┤
+  │ South boundary row (eta=0) │ 0.635       │ 0.243 │
+  ├────────────────────────────┼─────────────┼───────┤
+  │ East boundary col          │ 0.633       │ 0.352 │
+  ├────────────────────────────┼─────────────┼───────┤
+  │ Deep interior              │ 0.181       │ —     │
+  └────────────────────────────┴─────────────┴───────┘
+
+  All 8 highest-Courant cells in the entire domain sit at eta=0–1 — directly on 
+  the south open boundary, where h reaches 3290 m (c = √gh ≈ 180 m/s). The
+  interior tops out at 0.181, which is exactly why the estuary interior stayed
+  stable while every boundary went unstable.
+
+  Why nothing helped: every DT experiment this session deliberately scaled
+  NDTFAST down in lockstep to hold DTFAST fixed at 1.5 s — DT 60/NDTFAST 40, DT
+  12/NDTFAST 8, DT 6/NDTFAST 4 all give DTFAST = 1.5 s. The reasoning was
+  "DTFAST=1.5s was already proven stable," but that was inherited from the
+  shallow Chesapeake-only domain where c ≈ 22 m/s gives Courant ≈ 0.06 — 10× 
+  safer. The one parameter governing a barotropic instability was held constant
+  through every single test, while ubar/vbar/zeta were exactly the fields
+  observed running away.
+
+  This also explains why stronger nudging made things worse: nudging pushes
+  harder on a marginally-stable fast mode.
+
+  What I ruled out along the way (all clean, no action needed): BRY vertical
+  structure (matches INI level-for-level, correct ordering), BRY internal
+  consistency (ubar = depth-avg of u to 0.0008 m/s), INI↔BRY zeta agreement,
+  grid quality (rx0 = 0.200, rx1 = 7.8, both within limits), surface freshwater
+  flux (orders of magnitude too small — the column loses 3.7 psu/day, which
+  would need ~290 m of freshwater), and tides (off). The salinity collapse is
+  purely a symptom of advection by the runaway currents.
+
+  Secondary finding: LuvSponge == F, LtracerSponge == F F — sponge layers are
+  off, and were never tried. That's the standard ROMS remedy for
+  boundary-generated noise, and it's independent of the timestep fix.
+
+● User answered Claude's questions:
+  ⎿  · How do you want to fix DTFAST (currently 1.5 s, Courant 0.635)? → DT=12s,
+     NDTFAST=40
+     · Enable the sponge layer at the same time, or test the timestep fix alone 
+     first? → Timestep fix alone first
+
+● Applying DT=12s / NDTFAST=40. Let me first confirm the current state of all
+  the step-count parameters, since they all need rescaling.
+
+  Read 1 file (ctrl+o to expand)
+
+● Now applying all the changes — DT, NDTFAST, and every step-count parameter
+  halved to preserve the same physical durations:
+
+● Update(roms_cb600m.in)
+  ⎿  Added 3 lines, removed 3 lines
+      234  
+      235  !     NTIMES ==  525600 ! Jan.1,1985 to Jan. 1,1986 @DT=60s.
+      236  !     NTIMES ==  44640  ! Jan.1,1994 to Feb. 1,1994 @DT=60s.
+      237 -      NTIMES ==  417600 ! Jan.1,1994 to Jan. 30,1994 @DT=6s. 2
+          -9 days                                                        
+      238 -          DT == 6.0d0                                         
+      239 -     NDTFAST ==   4                                           
+      237 +      NTIMES ==  208800 ! Jan.1,1994 to Jan. 30,1994 @DT=12s. 
+          +29 days                                                       
+      238 +          DT == 12.0d0                                        
+      239 +     NDTFAST ==  40     ! DTFAST=0.3s; barotropic Courant 0.64
+          +->0.13 (h_max=3290m)                                          
+      240  
+      241  ! Number of timesteps for computing observation impacts during
+            the
+      242  ! analysis-forecast cycle.
+
+● Update(roms_cb600m.in)
+  ⎿  Added 2 lines, removed 2 lines
+      264  
+      265         NRREC == 0
+      266     LcycleRST == T
+      267 -        NRST == 14400 ! 24 hours @ DT=6s.                     
+      268 -        NSTA ==  1800 !  3 hours @ DT=6s.                     
+      267 +        NRST == 7200 ! 24 hours @ DT=12s.                     
+      268 +        NSTA ==  900 !  3 hours @ DT=12s.                     
+      269          NFLT == 1
+      270         NINFO == 1
+      271  
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      275       LDEFOUT == T
+      276  !       NHIS == 525600 ! 365days @DT=60s.
+      277  !       NHIS == 44640  ! 31days @DT=60s.
+      278 -        NHIS == 417600 ! 29days @DT=6s.                       
+      278 +        NHIS == 208800 ! 29days @DT=12s.                      
+      279       NDEFHIS ==      0 ! One single HIS file per calculation.
+      280          NXTR == 72
+      281       NDEFXTR == 0
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      279       NDEFHIS ==      0 ! One single HIS file per calculation.
+      280          NXTR == 72
+      281       NDEFXTR == 0
+      282 -        NQCK ==    1800 ! 3hrs    @DT=6s.                     
+      282 +        NQCK ==    900 ! 3hrs    @DT=12s.                     
+      283       NDEFQCK ==      0 ! One single QCK file per calculation.
+      284        NTSAVG ==      1
+      285          NAVG ==   14400 ! 1day    @DT=6s.
+
+● Update(roms_cb600m.in)
+  ⎿  Added 4 lines, removed 4 lines
+      282          NQCK ==    900 ! 3hrs    @DT=12s.
+      283       NDEFQCK ==      0 ! One single QCK file per calculation.
+      284        NTSAVG ==      1
+      285 -        NAVG ==   14400 ! 1day    @DT=6s.                     
+      286 -     NDEFAVG ==   14400 ! 1day    @DT=6s.                     
+      285 +        NAVG ==   7200 ! 1day    @DT=12s.                     
+      286 +     NDEFAVG ==   7200 ! 1day    @DT=12s.                     
+      287        NTSDIA ==      1
+      288 -        NDIA ==   14400 ! 1day    @DT=6s; must be >0 if DIAGNO
+          -STICS_BIO is defined                                          
+      289 -     NDEFDIA ==   14400 ! 1day    @DT=6s.                     
+      288 +        NDIA ==   7200 ! 1day    @DT=12s; must be >0 if DIAGNO
+          +STICS_BIO is defined                                          
+      289 +     NDEFDIA ==   7200 ! 1day    @DT=12s.                     
+      290  
+      291  ! Output tangent linear and adjoint models parameters.
+      292  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All changes applied. Pure .in edits — no recompile needed, resubmit directly.
+
+  ┌────────────────────────────────────────┬────────┬────────┐
+  │               Parameter                │ Before │ After  │
+  ├────────────────────────────────────────┼────────┼────────┤
+  │ DT                                     │ 6.0 s  │ 12.0 s │
+  ├────────────────────────────────────────┼────────┼────────┤
+  │ NDTFAST                                │ 4      │ 40     │
+  ├────────────────────────────────────────┼────────┼────────┤
+  │ DTFAST                                 │ 1.5 s  │ 0.3 s  │
+  ├────────────────────────────────────────┼────────┼────────┤
+  │ Barotropic Courant                     │ 0.635  │ 0.127  │
+  ├────────────────────────────────────────┼────────┼────────┤
+  │ NTIMES                                 │ 417600 │ 208800 │
+  ├────────────────────────────────────────┼────────┼────────┤
+  │ NRST / NAVG / NDEFAVG / NDIA / NDEFDIA │ 14400  │ 7200   │
+  ├────────────────────────────────────────┼────────┼────────┤
+  │ NSTA / NQCK                            │ 1800   │ 900    │
+  ├────────────────────────────────────────┼────────┼────────┤
+  │ NHIS                                   │ 417600 │ 208800 │
+  └────────────────────────────────────────┴────────┴────────┘
+
+  Nudging settings are untouched (TNUDG=10d, M3NUDG=30d, OBCFAC=24), so this
+  isolates the barotropic timestep as the change.
+
+  What to watch in the new log: ROMS prints Maximum barotropic Courant Number
+  near line ~1373 at startup. It should now read ≈ 1.27E-01 instead of 6.35E-01
+  — please confirm that before anything else, since it verifies the fix took
+  effect.
+
+  One practical note: walltime is 02:00:00 (run_roms.tcsh:6). This config is
+  roughly ~15% cheaper per simulated day than the last run, so 2 hours should
+  get you meaningfully past day 1.4 where every previous run died — but if it
+  survives, you'll want the commented-out 12:00:00 on line 5 for a full 29-day
+  run.
+
+  If this is the cause, you should see ubar/vbar stay bounded and salt_sur hold
+  near 36 psu along the east boundary instead of collapsing. If it still
+  degrades, the sponge layer is the next lever, and it's independent of this
+  one.
+
+✻ Crunched for 9m 8s
+
+❯ I resubmitted, output file is roms.o7015724, the program is still running, it 
+  has same problem of dropping salt_sur along east and south-east boundaries.   
+
+● Let me first verify the fix actually took effect, then compare the degradation
+  rate against the previous run.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The fix did take effect exactly as predicted — Maximum barotropic Courant 
+  Number = 1.27036124E-01 (was 6.35E-01), ndtfast = 40. So the barotropic CFL
+  was genuinely marginal and is now fixed, but that alone was not the cause. Let
+  me quantify whether it changed anything at all:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The new run is worse, not better — at day 0.625 it's down to 14.8–19.0 psu
+  versus 24.8–30.5 in the old run. A numerical instability gets better with a
+  smaller timestep, never worse. That definitively rules out the barotropic CFL
+  as the driver (though the Courant fix itself is still correct and worth
+  keeping).
+
+  This means the model is faithfully computing a real advective process. Let me
+  find where the fresh water actually comes from:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The transect is decisive. Freshening originates at the boundary and propagates
+  inward (~1.7 m/s), not from the estuary:
+
+  ┌───────┬──────────────┬───────┬───────┬───────┬───────┬───────┐
+  │  day  │ xi=515 (bdy) │  510  │  500  │  480  │  450  │  400  │
+  ├───────┼──────────────┼───────┼───────┼───────┼───────┼───────┤
+  │ 0.000 │ 36.36        │ 36.36 │ 36.35 │ 36.30 │ 36.06 │ 35.86 │
+  ├───────┼──────────────┼───────┼───────┼───────┼───────┼───────┤
+  │ 0.250 │ 28.65        │ 30.02 │ 35.09 │ 34.88 │ 36.00 │ 35.88 │
+  ├───────┼──────────────┼───────┼───────┼───────┼───────┼───────┤
+  │ 0.500 │ 20.00        │ 19.28 │ 20.96 │ 23.87 │ 25.78 │ 35.88 │
+  └───────┴──────────────┴───────┴───────┴───────┴───────┴───────┘
+
+  And the smoking gun: salt_sur reaches −9.35 psu. Negative salinity is
+  physically impossible. There is no water fresher than ~34.9 anywhere in the
+  BRY data or initial condition near that boundary — so the model isn't
+  advecting fresh water in, it's manufacturing it. That's an unbounded numerical
+  overshoot in the tracer advection scheme.
+
+  Ran 1 shell command (ctrl+o to expand)
+● Vadvection == A4 — 4th-order centered vertical advection for tracers. That
+  scheme is dispersive and non-monotonic: it has no positivity constraint, so it
+  can overshoot into negative values exactly as observed. Let me see the full
+  advection block:
+
+  Read 1 file (ctrl+o to expand)
+
+● This is very likely the root cause. Note the asymmetry: salinity uses A4 
+  (centered) horizontally while temperature uses U3 (upstream) — and salinity is
+  precisely the field you've been reporting as the problem. Let me verify with
+  two decisive checks:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Two important corrections to my hypothesis, both worth stating plainly:
+
+  1. The working 1-year config used the identical advection settings (U3/A4
+  horizontal, A4/A4 vertical). So A4 isn't broken per se — it worked fine on the
+  shallow domain.
+  2. Temperature collapses too (22.85 → 4.51 °C), so this isn't
+  salinity-specific as I suggested.
+
+  But the numbers point somewhere specific. At day 0.125 the boundary cell went
+  to T=12.50, S=32.07. Mixing surface water (22.85 °C, 36.36) with deep water
+  (~3 °C, 34.9) 50/50 gives ≈(12.9, 35.6) — temperature matches vertical mixing 
+  almost exactly, but salinity (32.07) is fresher than both endpoints, which
+  mixing can never produce. Let me confirm the column is overturning:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The column did not homogenize — salinity stratification actually increased
+  (spread 1.63 → 6.06), so it isn't convective overturning either. But look at
+  the bottom: salinity at 2530 m depth changed from 34.94 → 34.20 in a single 
+  day. Nothing physical alters abyssal water that fast. The entire column is
+  being disturbed at once, which points at the vertical coordinate itself:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Vertical coordinates are fully consistent — INI, BRY, and the model all
+  specify Vtransform=2, Vstretching=2, θs=7, θb=0.1, Tcline=150. I independently
+  recomputed Cs_r from those parameters and got -0.96825/-4.37e-5 against the
+  files' -0.96833/-0.00004, so that's verified, not just asserted. Ruled out.
+
+  Let me check the remaining clue — the vertical Courant number and whether
+  MPDATA is available:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now I have it confirmed. The log states outright:
+
+   salt                     1   Akima4             Akima4
+
+  Salinity uses Akima4 for both horizontal and vertical advection. Akima4 is a
+  4th-order centered scheme with no limiter — it is not monotonic and not
+  positive-definite. And the available alternatives include HSIMT (TVD limiter)
+  and MPDATA (positive-definite).
+
+  The complete picture
+
+  The negative salinity (−15.29 psu) is effectively proof. No physical process
+  and no boundary condition can produce it — a weighted-average radiation BC is
+  bounded, and the freshest water anywhere nearby is 34.9. Only an unbounded,
+  non-monotonic advection overshoot can. Three factors push Akima4 outside its
+  valid regime here, none of which existed in your working run:
+
+  ┌─────────────────────┬─────────────────────┬─────────────────────────────┐
+  │       Factor        │  Working shallow    │      This deep domain       │
+  │                     │       domain        │                             │
+  ├─────────────────────┼─────────────────────┼─────────────────────────────┤
+  │ Layer thickness     │ ~3:1 (1–3 m)        │ 45:1 (8 m surface → 360 m   │
+  │ ratio               │                     │ bottom)                     │
+  ├─────────────────────┼─────────────────────┼─────────────────────────────┤
+  │ Max vertical        │ small               │ 4.21 (>1)                   │
+  │ Courant Cw          │                     │                             │
+  ├─────────────────────┼─────────────────────┼─────────────────────────────┤
+  │ T/S front sharpness │ weak, well-mixed    │ Gulf Stream front at the    │
+  │                     │                     │ boundary                    │
+  └─────────────────────┴─────────────────────┴─────────────────────────────┘
+
+  Akima4 assumes a smooth, near-uniform grid. On a 45:1 stretched column with Cw
+  > 4 and a sharp front, it rings badly.
+
+  This closes the loop on the runaway currents too, which is why every
+  momentum-side fix failed: overshoot creates spurious T/S extremes → spurious
+  density → spurious pressure gradient → accelerating currents → sharper
+  gradients → worse overshoot. A positive feedback, seeded by the tracer scheme.
+  It also explains the "checkerboard 2Δx mode" noted early on — the classic
+  signature of an unlimited centered scheme — and why TNU2 barely helped (1 m²/s
+  can't damp it) and why the finer DTFAST made it worse (DT went 6→12 s,
+  doubling the advective step).
+
+  I should flag that I was wrong twice today — the vertical-mismapping and
+  barotropic-CFL hypotheses. Keep the Courant fix (it was genuinely marginal at
+  0.635), but it wasn't the cause. This hypothesis is better supported because
+  the negative salinity is a direct, unambiguous fingerprint rather than
+  circumstantial.
+
+  Both fixes below are pure .in changes, no recompile.
+
+● User answered Claude's questions:
+  ⎿  · Which advection scheme should replace Akima4 for temperature and 
+     salinity? → HSIMT (both H and V)
+     · Also enable the sponge layer in the same run? → No - advection fix alone
+
+  Read 1 file (ctrl+o to expand)
+
+● Confirmed HSIMT is valid for both horizontal and vertical. Applying:
+
+● Update(roms_cb600m.in)
+  ⎿  Added 4 lines, removed 4 lines
+      134  ! two letters, regardless if using uppercase or lowercase. If 
+           nested
+      135  ! grids, specify values for each grid (see glossary below).
+      136  
+      137 -   Hadvection == U3       \                     ! temperature 
+      138 -                 A4                             ! salinity    
+      137 +   Hadvection == HSIMT    \                     ! temperature 
+      138 +                 HSIMT                          ! salinity    
+      139  
+      140 -   Vadvection == A4       \                     ! temperature 
+      141 -                 A4                             ! salinity    
+      140 +   Vadvection == HSIMT    \                     ! temperature 
+      141 +                 HSIMT                          ! salinity    
+      142  
+      143  ! Adjoint-based algorithms can have different horizontal and s
+           chemes
+      144  ! for active and inert tracers.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Applied. Tracer advection switched from Akima4 (unlimited, non-monotonic) to
+  HSIMT-TVD for both temperature and salinity, horizontal and vertical.
+  Everything else is untouched, so this isolates the advection scheme as the
+  single variable.
+
+  Pure .in change — no recompile needed. You'll want to kill the
+  currently-running roms.o7015724 before resubmitting, since it writes to the
+  same output directory.
+
+  What to check in the new log, in priority order:
+
+  1. Startup confirmation — near line ~1055 it should now read salt ... HSIMT 
+  HSIMT instead of Akima4 Akima4. Verifies the change took.
+  2. min(salt_sur) must stay ≥ 0. This is the single decisive test. HSIMT's TVD
+  limiter makes negative salinity mathematically impossible, so if you still see
+  negative values, the diagnosis is wrong and I'd want to know immediately
+  rather than tune further.
+  3. Whether the east-boundary decline stops. Prior runs: 36.4 → ~25 by day 0.6
+  (old), → ~17 (last run). If the overshoot feedback was driving it, salinity
+  should now hold near 36 there.
+
+  Two honest caveats. HSIMT is somewhat more diffusive than Akima4, so expect
+  slightly smoother fronts — that's the intended trade. And if the runaway
+  currents turn out to have a second, independent driver rather than being fed
+  purely by the tracer-overshoot feedback, this may reduce the problem without
+  eliminating it; in that case the sponge layer is the next lever, and it's
+  fully independent of this change.
+
+✻ Cooked for 7m 5s
+
+❯ I killed the old job and resubmitted, output file is roms.o7016001, same      
+  problem of dropping salt_sur along east and south-east boundaries.            
+
+● Let me check whether HSIMT took effect and — critically — whether salinity
+  still goes negative, which is the decisive test.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Decisive result — and it's informative. HSIMT took effect (salt: HSIMT HSIMT),
+  and the negative salinity is completely gone: minimum is now 8.55–8.56 psu at
+  eta=795 (a genuine upper-Chesapeake value) and never goes below it. The TVD
+  limiter works exactly as designed.
+
+  So the overshoot was real and is now fixed — but it was not the cause. The
+  freshening continues essentially unchanged. That's actually valuable: the
+  numerical artifact is eliminated, so what remains is genuine signal. Since TVD
+  cannot create new extrema, the 16.5 psu water now appearing at the boundary
+  must have been physically transported from somewhere that already had 16.5 psu
+  — i.e. the estuary/shelf.
+
+  But the spatial pattern is strange: at day 0.125, xi=500–517 all freshened
+  while xi=480 stayed at 36.29. Fresh water can't jump over xi=480. So it isn't
+  arriving from the interior — it's arriving along the boundary. Let me find the
+  entry point:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Breakthrough. Look at the south boundary at day 0.5 — deep points x400 (h=2478
+  m), x440 (h=2791 m), x480 (h=3012 m) read 12.04, 11.99, 12.00. Nearly
+  identical values at widely-separated deep locations. Advection cannot do that;
+  it would produce spatial structure. This is a uniform relaxation.
+
+  And it's a clean exponential. Tracking x440: 36.32 → 27.33 → 20.63 → 15.68 →
+  12.01, with successive differences in constant ratio 0.742 per 0.125 day:
+
+  - e-folding time = 10.06 hours
+  - TNUDG=10 days ÷ OBCFAC=24 = 10.0 hours ← exact match
+  - extrapolated target ≈ 0 psu, not 36.3
+
+  The boundary nudging is relaxing temperature and salinity toward zero instead 
+  of toward the BRY data. Let me confirm the mechanism:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● FOUND IT. Look at the date ROMS assigns to the boundary data:
+
+  GET_NGFLD_NF90 - free-surface eastern boundary condition,  2433-01-11
+  00:00:00.00
+                    (Grid= 01, Rec=31, Index=2, File: bry_199401.nc)
+
+  Year 2433, and it jumped straight to Rec=31 — the last record of a 31-record
+  file — on the very first read. Meanwhile the surface forcing files read
+  correctly at 1994-01-01. The boundary file's time coordinate is being
+  misinterpreted.
+
+  Ran 1 shell command (ctrl+o to expand)
+● Complete diagnosis. The arithmetic confirms it exactly:
+
+  - bry_time raw = 385716 hours since 1950-01-01 (correct in the file =
+  1994-01-01 12:00)
+  - Epoch shift 1950→1975 = 9131 days = 219144 hours
+  - 385716 − 219144 = 166572 ← exactly ROMS's reported Tmin
+
+  ROMS subtracted the epoch offset but never converted hours→days. It then
+  treats 166572 as days since 1975 → year 2433. Model time is 6940.5, so it sits
+  ~160,000 "days" outside the data range, cannot bracket any record, and the
+  boundary arrays end up holding garbage ≈ 0.
+
+  Your forcing files use days since 1994-01-01 and read perfectly
+  (Tmin=6939.9375). Only the BRY file uses hours since.
+
+  This explains the entire session:
+
+  ┌──────────────────────────────┬──────────────────────────────────────────┐
+  │         Observation          │               Explanation                │
+  ├──────────────────────────────┼──────────────────────────────────────────┤
+  │ Decay e-folding = 10.06 h    │ TNUDG=10d ÷ OBCFAC=24 = 10.0 h — the     │
+  │                              │ nudging timescale, exactly               │
+  ├──────────────────────────────┼──────────────────────────────────────────┤
+  │ Target ≈ 0 psu, not 36.3     │ Boundary arrays hold ~0, so nudging      │
+  │                              │ pulls T and S to zero                    │
+  ├──────────────────────────────┼──────────────────────────────────────────┤
+  │ Stronger nudging always made │ Faster convergence to garbage. TNUDG=1d  │
+  │  it worse                    │ (~1 h) was catastrophic; TNUDG=30d       │
+  │                              │ degraded slowest                         │
+  ├──────────────────────────────┼──────────────────────────────────────────┤
+  │ Uniform along whole          │                                          │
+  │ boundary, deep and shallow   │ It's relaxation, not advection           │
+  │ alike                        │                                          │
+  ├──────────────────────────────┼──────────────────────────────────────────┤
+  │ Immune to DT, DTFAST, TNU2,  │                                          │
+  │ advection scheme, DCRIT,     │ None touch the boundary data             │
+  │ masking                      │                                          │
+  ├──────────────────────────────┼──────────────────────────────────────────┤
+  │ Interior estuary stable      │ Far from the boundary term               │
+  └──────────────────────────────┴──────────────────────────────────────────┘
+
+  Let me verify against your working run and check whether any other input has
+  the same defect:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The audit is conclusive. bry_199401.nc is the only input file not in days:
+
+  ┌─────────────────────────┬──────────────────────┬────────────────────────┐
+  │          File           │      Time units      │                        │
+  ├─────────────────────────┼──────────────────────┼────────────────────────┤
+  │ bry_199401.nc           │ hours since          │ ✗ the bug              │
+  │                         │ 1950-01-01           │                        │
+  ├─────────────────────────┼──────────────────────┼────────────────────────┤
+  │ all 14                  │ days since           │ ✓ read correctly       │
+  │ frc_ches_*_era.nc       │ 1994-01-01           │                        │
+  ├─────────────────────────┼──────────────────────┼────────────────────────┤
+  │ riv_chesbay...nc        │ days since           │ ✓                      │
+  │                         │ 1975-01-01           │                        │
+  ├─────────────────────────┼──────────────────────┼────────────────────────┤
+  │ initial_1993-12-31.nc   │ seconds since        │ ✓ (read correctly per  │
+  │                         │ 1950-01-01           │ log)                   │
+  └─────────────────────────┴──────────────────────┴────────────────────────┘
+
+  Every file ROMS handled correctly is in days. The one file it mangled is in
+  hours. Let me build a corrected copy — leaving your original untouched:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Corrected file created and verified: bry_time now runs 6940.5 → 6970.5 days 
+  since 1975-01-01 = 1994-01-01 12:00 → 1994-01-31 12:00, the model's start time
+  6940.5 now falls inside the range, and salt_east data is bit-identical. Your
+  original is a symlink to the Glorys-derived file and is untouched.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      1288  !              /glade/u/home/lgchen/ChesROMS/input_files/bry_
+            chesbay336x564x20_2024_v20250820.nc |
+      1289  !              /glade/u/home/lgchen/ChesROMS/input_files/bry_
+            chesbay336x564x20_2025_v20260129.nc
+      1290  
+      1291 -    BRYNAME == /glade/u/home/lgchen/ChesROMS/input_files_4UMD
+           -/bry_199401.nc                                               
+      1291 +    BRYNAME == /glade/u/home/lgchen/ChesROMS/input_files_4UMD
+           +/bry_199401_days1975.nc                                      
+      1292  
+      1293  
+      1294  ! Input climatology file names. The USER has the option to se
+            parate the
+
+● The essential fix is in. Two follow-ups are worth deciding on, since both were
+  changed only to fight this bug and are now unjustified:
+
+● User answered Claude's questions:
+  ⎿  · TNUDG is currently 10 days (I lowered it from 30 based on my 
+     now-disproven 'weak outflow nudging' theory). With correct BRY data, what 
+     should it be? → Revert to 30 days
+     · Lm3CLM=T / LnudgeM3CLM=T activate an INTERIOR relaxation of 3D momentum 
+     toward CLIMA uclm/vclm, which are placeholder ZEROS. The custom 
+     ana_nudgcoef.h sponge confines it to ~15 cells of the boundary, but within 
+     that band momentum is being dragged toward zero. Revert? → Revert both to F
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      492  ! Nudging/relaxation time scales, inverse scales will be compu
+           ted
+      493  ! internally, [1:Ngrids].
+      494  
+      495 -       TNUDG == 10.0d0                     ! days, value for t
+          -he outflow.                                                   
+      495 +       TNUDG == 30.0d0                     ! days, value for t
+          +he outflow.                                                   
+      496         ZNUDG == 0.0d0                      ! days
+      497        M2NUDG == 0.0d0                      ! days
+      498        M3NUDG == 30.0d0                     ! days, value for t
+           he outflow.
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      533  
+      534       LsshCLM == F                          ! sea-surface heigh
+           t
+      535        Lm2CLM == F                          ! 2D momentum
+      536 -      Lm3CLM == T                          ! 3D momentum      
+      536 +      Lm3CLM == F                          ! 3D momentum      
+      537  
+      538    LtracerCLM == F F                        ! temperature, sali
+           nity, inert
+      539  
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      543  ! that are needed for nudging. See glossary below for details.
+      544  
+      545   LnudgeM2CLM == F                          ! 2D momentum
+      546 - LnudgeM3CLM == T                          ! 3D momentum      
+      546 + LnudgeM3CLM == F                          ! 3D momentum      
+      547  
+      548    LnudgeTCLM == F F                        ! temperature, sali
+           nity, inert
+      549  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All changes applied. Pure .in changes plus a new input file — no recompile 
+  needed.
+
+  Root cause
+
+  bry_199401.nc stored bry_time as hours since 1950-01-01. ROMS subtracted the
+  1950→1975 epoch offset in the raw units (385716 − 219144 = 166572) but never
+  converted hours→days, then treated 166572 as days since 1975 → year 2433.
+  Model time (6940.5) sat ~160,000 units outside the data range, so ROMS could
+  never bracket a record, and the boundary arrays held ≈ 0. The nudging term
+  then relaxed T and S toward zero.
+
+  The measured decay confirmed it before I found the file: e-folding = 10.06 h
+  against TNUDG=10d ÷ OBCFAC=24 = 10.0 h.
+
+  This is why every remedy failed and why stronger nudging always made things 
+  worse — it converged to garbage faster. It also retro-explains the TNUDG=1.0d0
+  run that collapsed the domain within hours.
+
+  Final config
+
+  ┌────────────────────┬────────────────────────┬───────────────────────────┐
+  │      Setting       │         Value          │         Rationale         │
+  ├────────────────────┼────────────────────────┼───────────────────────────┤
+  │ BRYNAME            │ bry_199401_days1975.nc │ the fix — time now in     │
+  │                    │                        │ days, in range            │
+  ├────────────────────┼────────────────────────┼───────────────────────────┤
+  │ TNUDG              │ 30 d                   │ reverted to your proven   │
+  │                    │                        │ value                     │
+  ├────────────────────┼────────────────────────┼───────────────────────────┤
+  │ Lm3CLM /           │ F / F                  │ dropped interior nudge    │
+  │ LnudgeM3CLM        │                        │ toward zero               │
+  ├────────────────────┼────────────────────────┼───────────────────────────┤
+  │ Hadvection /       │ HSIMT                  │ kept — eliminated         │
+  │ Vadvection         │                        │ negative salinity         │
+  ├────────────────────┼────────────────────────┼───────────────────────────┤
+  │ DT / NDTFAST       │ 12 s / 40              │ kept — Courant 0.635 →    │
+  │                    │                        │ 0.127                     │
+  └────────────────────┴────────────────────────┴───────────────────────────┘
+
+  I kept HSIMT and the Courant fix because both are genuine improvements found
+  along the way, even though neither was the cause. LuvSponge remains F — with
+  correct boundary data it should be unnecessary.
+
+  First thing to check in the new log: the BRY read line should now show
+  1994-01-01 and Tmin=6940.5000 Tmax=6970.5000, not 2433-01-11 / Tmin=166572. If
+  that date is right, the fix took.
+
+  Worth flagging: this bug is in whatever generates
+  bry_ChesROMS-UMD_fromGlorys12v1_*.nc, so any other monthly BRY file from that 
+  pipeline has the same defect. The durable fix is to emit days since ... there;
+  I only corrected January 1994. If it's useful I can write a small script to
+  convert the rest.
+
+  I was wrong three times today — vertical mismapping, barotropic CFL, and
+  advection overshoot — so I want to be clear about why this one is different:
+  it's an exact quantitative match (10.06 h measured vs 10.0 h predicted) plus a
+  direct file defect, not an inference from circumstantial behavior.
+
+✻ Worked for 6m 35s
+
+❯ I reran, now the result seem ok. Thank you so much!                           
+
+● Great news — really glad that resolved it.
+
+  Let me record the key gotcha, since it will bite again on other months:
+
+  Ran 1 shell command, wrote 3 memories (ctrl+o to expand)
+
+● You're welcome — and thank you for pushing back when my explanations didn't
+  hold up. Twice that redirected the search: challenging the masking plan ("we'd
+  still have that structural problem, so what's the point"), and pointing me at
+  the deep-water point at xi=478, j=71 when I was fixated on the shallow Oregon
+  Inlet cells. Both were right, and both moved things toward the actual bug.
+
+  I've saved two notes for future sessions: the BRY time-units trap, and which
+  deep-domain settings differ from your shallow config (plus the list of things
+  now verified sound, so they don't get re-investigated).
+
+  One loose end worth closing: only January 1994 is fixed. Every other monthly
+  file from ChesROMS_UMD/preprocess/boundary/ still has hours since, so a longer
+  run or a different month will hit this again — silently, with no error. Two
+  options:
+
+  - I can write a small script to convert the remaining BRY files to days since 
+  1975-01-01 (non-destructive, same pattern as today).
+  - Better long-term, fix the preprocessing script itself to emit days, so new
+  files are correct at the source.
+
+  Happy to do either. Also worth noting for later: LuvSponge/LtracerSponge are
+  still F — genuinely unnecessary now, but they're the right lever if boundary
+  noise ever reappears on a longer run.
+
+✻ Cooked for 1m 10s
+
+
+Resume this session with:
+claude --resume fd0dce15-680b-4805-b912-72033f5927b8

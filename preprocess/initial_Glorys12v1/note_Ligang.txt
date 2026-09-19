@@ -1,0 +1,5 @@
+2026-09-18: 
+the output file is: 
+ini_ChesROMS-UMD_fromGlorys12v1_1994-01-01_v03_shiftedFrom19931231_unitsSecondsSince.nc
+
+

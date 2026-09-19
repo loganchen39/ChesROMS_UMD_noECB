@@ -1,0 +1,28 @@
+# Build products
+Build/
+Build_*/
+*.o
+*.mod
+*.a
+# *.f90
+oceanM
+oceanS
+oceanO
+oceanG
+# romsM
+# romsS
+# romsG
+
+# Model output / large data
+# *.nc
+# *.nc4
+# *.bin
+ini_ChesROMS-UMD_fromGlorys12v1_1994-01-01_v03_shiftedFrom19931231_unitsSecondsSince.nc
+
+# Logs, job files, junk
+*.log
+*.out
+*.err
+core.*
+*~
+.DS_Store

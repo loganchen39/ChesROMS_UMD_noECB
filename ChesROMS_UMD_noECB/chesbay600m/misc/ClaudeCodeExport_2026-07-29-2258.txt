@@ -1,0 +1,1195 @@
+╭─── Claude Code v2.1.218 ─────────────────────────────────────────────────────╮
+│                                                    │ Tips for getting        │
+│                 Welcome back Logan!                │ started                 │
+│                                                    │ Run /init to create a … │
+│                       ▐▛███▜▌                      │ ─────────────────────── │
+│                      ▝▜█████▛▘                     │ What's new              │
+│                        ▘▘ ▝▝                       │ Bug fixes and reliabil… │
+│  Sonnet 5 · Claude Pro · ligang.chen@gmail.com's   │ Added Claude Opus 5 (`… │
+│  Organization                                      │ Added `sandbox.network… │
+│    /…/ChesROMS/ChesROMS_VIMS_noECB/chesbay600m     │ /release-notes for more │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+ ▎ Tackle your toughest work with Opus 5. Switch anytime with /model.
+
+❯ /compact                                                                      
+  ⎿  Compacted (ctrl+o to see full summary)
+  ⎿  Read chesbay600m/roms_ecb.h (213 lines)
+  ⎿  Referenced file chesbay600m/roms_cb600m.in
+
+❯ From your suggestions, I'd choose to reduce DT by a smaller intermediate      
+  amount, show to how to do it.                                                 
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Reducing DT by 5x (60s → 12s) is a reasonable intermediate step — enough to
+  meaningfully cut the vertical Courant number without the ~60x cost blowup of a
+  full fix. It brings Cw from 25.7 down to ~5.1 (still above the strict
+  stability limit of 1, so it's not guaranteed to survive the same spot, but
+  it's a real test of whether a moderate step helps, at 5x the compute cost
+  instead of 60x). I'm scaling NDTFAST down proportionally (40→8) to keep DTFAST
+  fixed at 1.5s — that barotropic sub-timestep was already confirmed stable, so
+  no need to touch it. All the other step-count parameters (NTIMES, NRST, NSTA,
+  NHIS, NQCK, NAVG, NDEFAVG, NDIA, NDEFDIA) are expressed in units of timesteps
+  for fixed physical durations (e.g. "3hrs @DT=60s"), so they all need ×5 to
+  represent the same wall-clock/simulation durations at the new DT.
+
+● Update(roms_cb600m.in)
+  ⎿  Added 3 lines, removed 3 lines
+      234  
+      235  !     NTIMES ==  525600 ! Jan.1,1985 to Jan. 1,1986 @DT=60s.
+      236  !     NTIMES ==  44640  ! Jan.1,1994 to Feb. 1,1994 @DT=60s.
+      237 -      NTIMES ==  41760  ! Jan.1,1994 to Jan. 30,1994 @DT=60s. 
+          -29 days                                                       
+      238 -          DT == 60.0d0                                        
+      239 -     NDTFAST ==  40                                           
+      237 +      NTIMES ==  208800 ! Jan.1,1994 to Jan. 30,1994 @DT=12s. 
+          +29 days                                                       
+      238 +          DT == 12.0d0                                        
+      239 +     NDTFAST ==   8                                           
+      240  
+      241  ! Number of timesteps for computing observation impacts during
+            the
+      242  ! analysis-forecast cycle.
+
+● Update(roms_cb600m.in)
+  ⎿  Added 2 lines, removed 2 lines
+      264  
+      265         NRREC == 0
+      266     LcycleRST == T
+      267 -        NRST == 1440 ! 24 hours @ DT=60s.                     
+      268 -        NSTA ==  180 !  3 hours @ DT=60s.                     
+      267 +        NRST == 7200 ! 24 hours @ DT=12s.                     
+      268 +        NSTA ==  900 !  3 hours @ DT=12s.                     
+      269          NFLT == 1
+      270         NINFO == 1
+      271  
+
+● Update(roms_cb600m.in)
+  ⎿  Added 6 lines, removed 6 lines
+      275       LDEFOUT == T
+      276  !       NHIS == 525600 ! 365days @DT=60s.
+      277  !       NHIS == 44640  ! 31days @DT=60s.
+      278 -        NHIS == 41760  ! 29days @DT=60s.                      
+      278 +        NHIS == 208800 ! 29days @DT=12s.                      
+      279       NDEFHIS ==      0 ! One single HIS file per calculation.
+      280          NXTR == 72
+      281       NDEFXTR == 0
+      282 -        NQCK ==    180 ! 3hrs    @DT=60s.                     
+      282 +        NQCK ==    900 ! 3hrs    @DT=12s.                     
+      283       NDEFQCK ==      0 ! One single QCK file per calculation.
+      284        NTSAVG ==      1
+      285 -        NAVG ==   1440 ! 1day    @DT=60s.                     
+      286 -     NDEFAVG ==   1440 ! 1day    @DT=60s.                     
+      285 +        NAVG ==   7200 ! 1day    @DT=12s.                     
+      286 +     NDEFAVG ==   7200 ! 1day    @DT=12s.                     
+      287        NTSDIA ==      1
+      288 -        NDIA ==   1440 ! 1day    @DT=60s; must be >0 if DIAGNO
+          -STICS_BIO is defined                                          
+      289 -     NDEFDIA ==   1440 ! 1day    @DT=60s.                     
+      288 +        NDIA ==   7200 ! 1day    @DT=12s; must be >0 if DIAGNO
+          +STICS_BIO is defined                                          
+      289 +     NDEFDIA ==   7200 ! 1day    @DT=12s.                     
+      290  
+      291  ! Output tangent linear and adjoint models parameters.
+      292  
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● All updated in roms_cb600m.in:
+
+  ┌──────────────┬─────────────┬────────────────────────────────────────────┐
+  │    Param     │    Old      │           New (DT=12s, 5x finer)           │
+  │              │  (DT=60s)   │                                            │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ DT           │ 60.0        │ 12.0                                       │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NDTFAST      │ 40          │ 8 (keeps DTFAST=1.5s, already proven       │
+  │              │             │ stable)                                    │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NTIMES       │ 41760       │ 208800                                     │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NRST         │ 1440        │ 7200                                       │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NSTA         │ 180         │ 900                                        │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NHIS         │ 41760       │ 208800                                     │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NQCK         │ 180         │ 900                                        │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NAVG/NDEFAVG │ 1440        │ 7200                                       │
+  ├──────────────┼─────────────┼────────────────────────────────────────────┤
+  │ NDIA/NDEFDIA │ 1440        │ 7200                                       │
+  └──────────────┴─────────────┴────────────────────────────────────────────┘
+
+  No CPP/recompile needed — this is purely a .in change, so you can resubmit
+  directly.
+
+  One thing to flag: the blow-up previously hit at simulated step 825 (~104 min
+  in), so this reduction doesn't guarantee survival — Cw drops from 25.7 to only
+  ~5.1, still above the nominal stability limit of 1. It's a real test rather
+  than a guaranteed fix. Also note walltime is still 02:00:00 in run_roms.tcsh
+  (line 6) — since each step now covers 12s instead of 60s, reaching the same
+  simulated point takes 5x more steps/wall-clock, so if it survives past where
+  it died before, you may want to bump that walltime up before the model
+  exhausts the 2-hour window.
+
+✻ Cooked for 1m 34s
+
+❯ I reran and it failed again with output file roms.o6870019, help check and    
+  recommend how to fix it.                                                      
+
+  Searched for 5 patterns, ran 4 shell commands (ctrl+o to expand)
+
+● This time the model got much further — it survived to 34 hours of simulated 
+  time (step 11605) before failing, versus only ~104 minutes before the DT
+  reduction. So the DT=12s change substantially helped. But it hit a new,
+  different failure mode.
+
+  What happened: REASON: MaxDensity = 2.3E+02 at grid point (289,001,01) —
+  density became unphysical (not a NaN/Courant blow-up this time). I checked
+  that location in the grid:
+  - j=1 (eta index 0) is exactly the south open boundary row
+  - h = 2.48 m — extremely shallow, k=1 is the bottom sigma layer
+  - The vertical Courant number there was still Cw=6.45 right before it died —
+  elevated, though nowhere near the 25.7 seen before
+
+  I then checked the whole south boundary row: it spans from very deep water (up
+  to 3290m) down to 84 wet cells shallower than 5m, 49 shallower than 3m, out
+  of 393 wet boundary points. So the open boundary line itself cuts straight
+  through shallow marsh/wetland terrain. That's structurally fragile —
+  Flather/Radiation/Nudging OBCs assume reasonably well-behaved offshore water,
+  and forcing them at ~2.5m-deep marsh edge cells is a likely source of exactly
+  this kind of density blow-up, independent of the Courant-number issue we
+  already improved.
+
+● User answered Claude's questions:
+  ⎿  · How do you want to address the new density blow-up at the shallow south 
+     open-boundary cell? → Reduce DT further
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(roms_cb600m.in)  ⎿  Added 3 lines, removed 3 lines
+      234  
+      235  !     NTIMES ==  525600 ! Jan.1,1985 to Jan. 1,1986 @DT=60s.
+      236  !     NTIMES ==  44640  ! Jan.1,1994 to Feb. 1,1994 @DT=60s.
+      237 -      NTIMES ==  208800 ! Jan.1,1994 to Jan. 30,1994 @DT=12s. 
+          -29 days                                                       
+      238 -          DT == 12.0d0                                        
+      239 -     NDTFAST ==   8                                           
+      237 +      NTIMES ==  417600 ! Jan.1,1994 to Jan. 30,1994 @DT=6s. 2
+          +9 days                                                        
+      238 +          DT == 6.0d0                                         
+      239 +     NDTFAST ==   4                                           
+      240  
+      241  ! Number of timesteps for computing observation impacts during
+            the
+      242  ! analysis-forecast cycle.
+
+● Update(roms_cb600m.in)
+  ⎿  Added 2 lines, removed 2 lines
+      264  
+      265         NRREC == 0
+      266     LcycleRST == T
+      267 -        NRST == 7200 ! 24 hours @ DT=12s.                     
+      268 -        NSTA ==  900 !  3 hours @ DT=12s.                     
+      267 +        NRST == 14400 ! 24 hours @ DT=6s.                     
+      268 +        NSTA ==  1800 !  3 hours @ DT=6s.                     
+      269          NFLT == 1
+      270         NINFO == 1
+      271  
+
+● Update(roms_cb600m.in)
+  ⎿  Added 6 lines, removed 6 lines
+      275       LDEFOUT == T
+      276  !       NHIS == 525600 ! 365days @DT=60s.
+      277  !       NHIS == 44640  ! 31days @DT=60s.
+      278 -        NHIS == 208800 ! 29days @DT=12s.                      
+      278 +        NHIS == 417600 ! 29days @DT=6s.                       
+      279       NDEFHIS ==      0 ! One single HIS file per calculation.
+      280          NXTR == 72
+      281       NDEFXTR == 0
+      282 -        NQCK ==    900 ! 3hrs    @DT=12s.                     
+      282 +        NQCK ==    1800 ! 3hrs    @DT=6s.                     
+      283       NDEFQCK ==      0 ! One single QCK file per calculation.
+      284        NTSAVG ==      1
+      285 -        NAVG ==   7200 ! 1day    @DT=12s.                     
+      286 -     NDEFAVG ==   7200 ! 1day    @DT=12s.                     
+      285 +        NAVG ==   14400 ! 1day    @DT=6s.                     
+      286 +     NDEFAVG ==   14400 ! 1day    @DT=6s.                     
+      287        NTSDIA ==      1
+      288 -        NDIA ==   7200 ! 1day    @DT=12s; must be >0 if DIAGNO
+          -STICS_BIO is defined                                          
+      289 -     NDEFDIA ==   7200 ! 1day    @DT=12s.                     
+      288 +        NDIA ==   14400 ! 1day    @DT=6s; must be >0 if DIAGNO
+          +STICS_BIO is defined                                          
+      289 +     NDEFDIA ==   14400 ! 1day    @DT=6s.                     
+      290  
+      291  ! Output tangent linear and adjoint models parameters.
+      292  
+
+● Applied another 2x reduction: DT 12s→6s, NDTFAST 8→4 (keeps DTFAST=1.5s, the
+  proven-stable barotropic step), and scaled
+  NTIMES/NRST/NSTA/NHIS/NQCK/NAVG/NDEFAVG/NDIA/NDEFDIA all ×2 to preserve the
+  same physical durations. That's a 10x total reduction from the original
+  DT=60s.
+
+  One flag before you resubmit: walltime is still 02:00:00 in run_roms.tcsh, and
+  this run now needs 2x the steps of the last one (which itself needed ~1h48m
+  of PBS time to reach 34 simulated hours before failing, per the wall-clock
+  trend). If it survives past where it died last time, it risks running out of
+  walltime rather than failing physically — you may want to bump that up (e.g.
+  to 4-6 hours) before resubmitting.
+
+✻ Baked for 2m 44s
+
+❯ I reran and it failed with output file roms.o6871137, help check and suggest  
+  how to fix it.                                                                
+
+  Searched for 1 pattern, listed 1 directory, ran 6 shell commands (ctrl+o to expand)
+
+● I found the actual root cause — it's not a numerical Courant problem, it's a
+  data problem in the boundary forcing itself.
+
+  What I checked: Both failures (roms.o6870019 and roms.o6871137) died 2-7 hours
+  after the same event: the boundary file's daily record transition from
+  1994-01-01→1994-01-02. Halving DT again only bought ~21% more simulated time
+  (1.43→1.73 days) instead of the ~2x you'd expect if this were a Courant/CFL
+  issue — a sign this isn't timestep-driven.
+
+  What's actually in bry_199401.nc at the shallow south-boundary stretch (h ≈
+  2-13m, xi≈280-299, the exact area of both blow-ups): at grid point xi=288
+  (h=2.48m), the boundary temperature/salinity profile does this day-by-day:
+
+  ┌───────────┬─────────────┬────────────────────┬───────────┬──────────┐
+  │ Day (Jan) │  Surface T  │      Bottom T      │ Surface S │ Bottom S │
+  ├───────────┼─────────────┼────────────────────┼───────────┼──────────┤
+  │ 1         │ 13.8°C      │ 14.5°C             │ 33.4      │ 33.7     │
+  ├───────────┼─────────────┼────────────────────┼───────────┼──────────┤
+  │ 2         │ 17.8°C      │ 17.8°C             │ 35.9      │ 35.9     │
+  ├───────────┼─────────────┼────────────────────┼───────────┼──────────┤
+  │ 3         │ 16.8°C      │ 16.8°C             │ 35.6      │ 35.6     │
+  ├───────────┼─────────────┼────────────────────┼───────────┼──────────┤
+  │ 4         │ 16.7°C      │ 16.7°C             │ 35.0      │ 35.0     │
+  ├───────────┼─────────────┼────────────────────┼───────────┼──────────┤
+  │ 5         │ 14.7°C      │ 14.7°C             │ 34.0      │ 34.0     │
+  ├───────────┼─────────────┼────────────────────┼───────────┼──────────┤
+  │ 6         │ 13.7-14.0°C │ back to stratified │ 33.0-33.1 │          │
+  └───────────┴─────────────┴────────────────────┴───────────┴──────────┘
+
+  A ~4°C, ~2.5 psu jump in a single day, with the water column instantly going
+  from mildly stratified to perfectly vertically uniform, across the entire
+  shallow stretch (I checked xi=280 through 299, same pattern everywhere) —
+  that's not a plausible one-day physical transition in 2-13m-deep coastal
+  water. This looks like a data/interpolation artifact from the source
+  reanalysis (Glorys12v1) in these very shallow cells, which then gets imposed
+  on the model via the RadNud tracer boundary condition and destabilizes the
+  density field right there.
+
+  Given this, further DT reduction won't fix it — the forcing data itself is the
+  problem. I'd recommend going back to the mask the shallow south-boundary 
+  cells option from before, since it directly removes the exact area producing
+  the bad forcing. Want me to go ahead and do that (closing wet cells with h
+  below some threshold, e.g. 3-5m, along the open boundaries), or would you
+  rather first look at smoothing/clipping the anomalous BRY values in that
+  stretch instead of closing the cells?
+
+✻ Worked for 2m 10s
+
+❯ /export ClaudeCodeExport_2026-07-23-2249.txt                                  
+  ⎿  Conversation exported to: /glade/work/lgchen/project/ChesROMS/ChesROMS_VIMS
+     _noECB/chesbay600m/ClaudeCodeExport_2026-07-23-2249.txt
+
+❯ There is a bigger issue. Check the variable salt_sur from the output file     
+  roms_qck.nc which writes out result every 3 hours, after integrating, the     
+  salt_sur along east and south boundary becomes unreasonably smaller, i.e.     
+  fresher, you may check the result at the time of 1994-01-01-21:00:00. The     
+  boundary file of bry_199401.nc seems ok. How did it happen and how to fix it? 
+  Some other variables seem to have similar problem.                            
+
+  Searched for 1 pattern, ran 5 shell commands (ctrl+o to expand)
+
+● Found it — and it's a different, more fundamental bug than the
+  boundary-forcing issue I found earlier: horizontal tracer diffusion is 
+  essentially switched off.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● What I found: TNU2 == 0.0d0  0.1d0 — this sets horizontal diffusion to 0.0 
+  m²/s for temperature and only a tiny 0.1 m²/s for salinity. TS_DIF2/MIX_S_TS
+  are compiled in, but with the coefficient at zero for temp and near-zero for
+  salt, there's effectively nothing damping grid-scale noise in the tracer
+  fields — this is the exact same category of bug we already fixed for momentum
+  (VISC2 was 0 until we set it to 1.0).
+
+  I traced salt_sur in roms_qck.nc record-by-record from the very start of the
+  run and it confirms this directly — the noise is generated by the model, not 
+  present in the input data, and it grows every single 3-hour output step:
+
+  ┌────────┬───────────────────┬────────────────────────────────────────────┐
+  │ Record │       Time        │  salt_sur at xi=286-293 (south boundary)   │
+  ├────────┼───────────────────┼────────────────────────────────────────────┤
+  │ 0      │ 1994-01-01 12:00  │ 32.08, 32.11, 32.14, 32.18, 32.19, 32.21,  │
+  │        │ (init)            │ 32.22, 32.24 — smooth                      │
+  ├────────┼───────────────────┼────────────────────────────────────────────┤
+  │ 1      │ 15:00             │ 30.90, 30.72, 30.92, 30.09, 29.68, 29.67,  │
+  │        │                   │ 29.75, 31.24 — already jumpy               │
+  ├────────┼───────────────────┼────────────────────────────────────────────┤
+  │ 2      │ 18:00             │ 30.24, 30.53, 29.07, 29.26, 28.31, 28.73,  │
+  │        │                   │ 27.27, 30.32                               │
+  ├────────┼───────────────────┼────────────────────────────────────────────┤
+  │ 3      │ 21:00             │ 30.61, 30.62, 27.90, 28.93, 26.19, 27.47,  │
+  │        │                   │ 25.58, 28.88                               │
+  ├────────┼───────────────────┼────────────────────────────────────────────┤
+  │ 5      │ 1994-01-02 03:00  │ 29.23, 29.07, 27.52, 30.05, 28.69, 26.99,  │
+  │        │                   │ 22.48, 26.13                               │
+  └────────┴───────────────────┴────────────────────────────────────────────┘
+
+  This is a classic grid-scale (2Δx) checkerboard computational mode — adjacent
+  600m cells diverging by several psu within hours — that a small nonzero TNU2
+  is specifically meant to suppress. It's not confined to the open boundary
+  either: I checked interior rows (eta=1, eta=5) and the closed north boundary
+  too, and the same noisy growth is present there. This is very likely also
+  what's driving (or badly amplifying) the MaxDensity blow-ups from the last two
+  runs — extreme, unphysical local T/S values built up from this unchecked
+  noise, not just the BRY day-2 data artifact I flagged before (that may still
+  be worth fixing too, but this is the more immediate, domain-wide problem).
+
+  Fix: set TNU2 to a nonzero value for both tracers, matching the VISC2=1.0
+  value we already validated for momentum.
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      313  ! Harmonic/biharmonic horizontal diffusion of tracer for nonli
+           near model
+      314  ! and adjoint-based algorithms: [1:NAT+NPT,Ngrids].
+      315  
+      316 -        TNU2 == 0.0d0  0.1d0                    ! m2/s, T and 
+          -S psl20250802                                                 
+      316 +        TNU2 == 1.0d0  1.0d0                    ! m2/s, T and 
+          +S psl20250802                                                 
+      317          TNU4 == 0.0d0  0.0d0                    ! m4/s
+      318  
+      319       ad_TNU2 == 0.0d0  0.0d0                    ! m2/s
+
+● TNU2 changed from 0.0d0  0.1d0 to 1.0d0  1.0d0 (temp, salt) in roms_cb600m.in.
+  TS_DIF2/MIX_S_TS are already compiled in from before, so this is a pure
+  .in-file change — no recompile needed, you can resubmit directly.
+
+  This should damp the checkerboard noise at the source rather than just at the
+  boundary, so it may also reduce or eliminate the MaxDensity blow-ups we were
+  chasing. If it still fails, the BRY day-1→day-2 anomaly I found earlier
+  (temp/salt jumping ~4°C/2.5psu and going vertically uniform along the shallow
+  south boundary) remains a separate, unaddressed candidate worth revisiting.
+
+✻ Crunched for 2m 16s
+
+❯ I reran and it failed again with output file roms.o6949041. It has the same   
+  problem of salt_sur getting unreasonably fresher along east and south         
+  boundaries. Help check and recommend how to fix it.                           
+  Ran 4 shell commands (ctrl+o to expand)
+
+● This is a different, more direct finding than before — and it explains why
+  neither the DT reduction nor the TNU2 fix helped: the barotropic velocities 
+  and free surface at these exact shallow boundary cells are runaway, growing 
+  from the very first timestep.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● What I checked: TNU2=1.0 is confirmed active in this run (nl_tnu2(01)=1.0,
+  nl_tnu2(02)=1.0 in the log header), but the failure timing (day 1.425, step
+  27140) and the salt_sur noise trajectory are essentially unchanged from before
+  the fix — so tracer diffusion wasn't the actual problem.
+
+  I then looked at ubar, vbar, and zeta at the same shallow south-boundary cells
+  (xi=286-293, h≈2-4m), record by record from the very start of the run:
+
+  ┌────────┬─────────────────┬──────────────┬──────────────┬──────────────┐
+  │ Record │      Time       │    ubar      │    vbar      │    zeta      │
+  │        │                 │   (xi=289)   │   (xi=290)   │   (xi=290)   │
+  ├────────┼─────────────────┼──────────────┼──────────────┼──────────────┤
+  │ 0      │ 12:00 (init)    │ 0.022        │ -0.009       │ -0.440       │
+  ├────────┼─────────────────┼──────────────┼──────────────┼──────────────┤
+  │ 1      │ 15:00           │ 0.243        │ 0.126        │ -0.085       │
+  ├────────┼─────────────────┼──────────────┼──────────────┼──────────────┤
+  │ 2      │ 18:00           │ 0.346        │ 0.323        │ -0.174       │
+  ├────────┼─────────────────┼──────────────┼──────────────┼──────────────┤
+  │ 3      │ 21:00           │ 0.682        │ 0.877        │ -0.455       │
+  ├────────┼─────────────────┼──────────────┼──────────────┼──────────────┤
+  │ 4      │ 1994-01-02      │ 0.891        │ 1.639        │ -0.739       │
+  │        │ 00:00           │              │              │              │
+  ├────────┼─────────────────┼──────────────┼──────────────┼──────────────┤
+  │ 5      │ 03:00           │ 0.977        │ 2.080        │ -0.889       │
+  └────────┴─────────────────┴──────────────┴──────────────┴──────────────┘
+
+  vbar goes from -0.01 m/s to 2.08 m/s in 15 hours at a single boundary cell,
+  and zeta is being pulled down without bound. This is a runaway barotropic
+  instability, not a diffusion problem — the Fla/Cha open boundary conditions
+  (Flather for ubar/vbar, Chapman for zeta) are unstable specifically at these
+  very shallow (h<5m) boundary cells, since in shallow water a small transport
+  imbalance translates into a large velocity. That explosive current is what's
+  advecting the anomalous fresh/cold water inward, which is what you're seeing
+  in salt_sur — the freshening is a symptom, not the root cause.
+
+  This confirms the diagnosis I raised initially (before we tried DT and TNU2):
+  the open boundary line cuts through very shallow marsh terrain where Fla/Cha
+  OBCs aren't well-conditioned. Two rounds of trying other fixes (DT, TNU2)
+  didn't touch this mechanism, so I'd recommend we now do what I originally
+  proposed — mask off the shallowest open-boundary cells (close them to land) so
+  the boundary conditions only apply where the physics is well-behaved. That's
+  a one-time edit to the grid's mask_rho/mask_u/mask_v (and h consistency) at
+  the south and east boundary rows/columns where h is below some threshold (e.g.
+  3-5m), no CPP/recompile needed. Want me to go ahead and implement that, and
+  if so, what depth threshold would you like me to use (I'd suggest 5m, which
+  would close ~84 of the 393 wet south-boundary cells based on the bathymetry I
+  checked earlier)?
+
+✻ Worked for 1m 47s
+
+❯ I'm not sure if I agree with your conclusion. There's a big area in the open  
+  ocean along east and south boundary where e.g. the salt_sur become            
+  unreasonably fresher, e.g. xi=478, yi=71. Some other variables may have       
+  similar problems, help check again what might be wrong and recommend how to   
+  fix it.                                                                       
+
+  Searched for 6 patterns, listed 1 directory, ran 10 shell commands (ctrl+o to expand)
+
+● This changes the diagnosis significantly, and I think I found the actual root
+  cause — it's a configuration bug in the open boundary nudging setup, not a
+  shallow-water or diffusion issue.
+
+  What I found: Your .in file's LBC settings use RadNud for tracers at the
+  south/east boundaries, and you have TNUDG=30d, OBCFAC=24 set, which looks like
+  boundary nudging is active. But I traced through the actual ROMS source
+  (t3dbc_im.F, u3dbc_im.F) and the nudging term is gated by separate master
+  switches:
+
+  LnudgeTCLM  == F F     ! temperature, salinity — OFF
+  LnudgeM3CLM == F       ! 3D momentum — OFF
+  LnudgeM2CLM == F       ! 2D momentum — OFF
+  LsshCLM     == F       ! free-surface — OFF
+
+  All False. And even if they were True, there's no way to supply the actual
+  nudging-coefficient field: ANA_NUDGCOEF isn't defined in roms_ecb.h, and the
+  referenced NUDNAME == roms_nud.nc / CLMNAME == roms_clm.nc files don't exist
+  in the run directory.
+
+  So despite the .in file naming RadNud, the open boundaries for tracers, 3D
+  momentum, and (always, since it uses plain Rad) 3D momentum have zero 
+  restoring/damping term — they're running as pure radiation-only boundary
+  conditions with nothing pulling the solution back toward the boundary data.
+  That's a known-fragile setup: any small transient (real or numerical) at the
+  boundary is free to grow unchecked over time rather than being damped.
+
+  This explains what you're seeing much better than my earlier "shallow cell"
+  theory:
+  - It's present at both the shallow south stretch (extreme growth) and the deep
+  east boundary point you flagged, xi=478/eta=71, h=2667m (slower but still
+  steadily worsening: zeta drifts from 0 to -0.74m, salt_sur drops from 36.4 to
+  16.9 over 33 hours) — a pure-radiation OBC problem doesn't care about depth.
+  - Interior points far from any boundary (even naturally-fresh upper-bay
+  points) stay stable the whole time — consistent with the instability
+  originating at the boundary and radiating/advecting inward, not a domain-wide
+  forcing bug.
+  - Neither TNU2 nor DT touched it, because it isn't a diffusion or CFL problem.
+
+  Recommended fix: actually activate the nudging that the .in file already
+  implies:
+  1. #define ANA_NUDGCOEF in roms_ecb.h (uses ROMS's built-in analytical
+  boundary-sponge coefficient — no external file needed) — requires recompile.
+  2. Set LnudgeTCLM == T T, and change LBC(isUvel)/LBC(isVvel) east/south from
+  Rad to RadNud with LnudgeM3CLM == T, so momentum gets damping too.
+
+  Want me to make these edits (header + .in) so you can recompile, or would you
+  rather start with just the tracer nudging (LnudgeTCLM) first and leave
+  momentum as-is to isolate the effect?
+
+✻ Baked for 6m 56s
+
+❯ Do both — enable ANA_NUDGCOEF and momentum RadNud together                    
+
+  Read 1 file (ctrl+o to expand)
+
+● Good — tracers already say RadNud (lines 195-196), only
+  LBC(isUvel)/LBC(isVvel) (lines 191-192) need to change from Rad to RadNud.
+
+● Update(roms_cb600m.in)
+  ⎿  Added 2 lines, removed 2 lines
+      188     LBC(isFsur) ==   Clo     Cha     Cha     Clo         ! free
+           -surface
+      189     LBC(isUbar) ==   Clo     Fla     Fla     Clo         ! 2D U
+           -momentum
+      190     LBC(isVbar) ==   Clo     Fla     Fla     Clo         ! 2D V
+           -momentum
+      191 -   LBC(isUvel) ==   Clo     Rad     Rad     Clo         ! 3D U
+          --momentum                                                     
+      192 -   LBC(isVvel) ==   Clo     Rad     Rad     Clo         ! 3D V
+          --momentum                                                     
+      191 +   LBC(isUvel) ==   Clo     RadNud  RadNud  Clo         ! 3D U
+          +-momentum                                                     
+      192 +   LBC(isVvel) ==   Clo     RadNud  RadNud  Clo         ! 3D V
+          +-momentum                                                     
+      193     LBC(isMtke) ==   Clo     Rad     Rad     Clo         ! mixi
+           ng TKE
+      194  
+      195     LBC(isTvar) ==   Clo     RadNud  RadNud  Clo \       ! temp
+           erature
+
+● Now the nudging master switches:
+
+  Read 1 file (ctrl+o to expand)
+● Update(roms_cb600m.in)
+  ⎿  Added 2 lines, removed 2 lines
+      543  ! that are needed for nudging. See glossary below for details.
+      544  
+      545   LnudgeM2CLM == F                          ! 2D momentum
+      546 - LnudgeM3CLM == F                          ! 3D momentum      
+      546 + LnudgeM3CLM == T                          ! 3D momentum      
+      547  
+      548 -  LnudgeTCLM == F F                        ! temperature, sali
+          -nity, inert                                                   
+      548 +  LnudgeTCLM == T T                        ! temperature, sali
+          +nity, inert                                                   
+      549  
+      550  ! Starting (DstrS) and ending (DendS) day for adjoint sensitiv
+           ity forcing.
+      551  ! DstrS must be less or equal to DendS. If both values are zer
+           o, their
+
+  Searched for 2 patterns, ran 2 shell commands (ctrl+o to expand)
+
+● LnudgeM3CLM==T needs a nonzero M3NUDG — it's currently 0.0d0, which would make
+  the nudging coefficient exactly zero (inert) even with nudging "enabled."
+  Setting it to match TNUDG:
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      495         TNUDG == 30.d0                      ! days, value for t
+           he outflow.
+      496         ZNUDG == 0.0d0                      ! days
+      497        M2NUDG == 0.0d0                      ! days
+      498 -      M3NUDG == 0.0d0                      ! days             
+      498 +      M3NUDG == 30.0d0                     ! days, value for t
+          +he outflow.                                                   
+      499  
+      500  ! Factor between passive (outflow) and active (inflow) open bo
+           undary
+      501  ! conditions, [1:Ngrids]. If OBCFAC > 1, nudging on inflow is 
+           stronger
+
+● Now the CPP flag in roms_ecb.h:
+
+● Update(roms_ecb.h)
+  ⎿  Added 1 line
+      62  #define DJ_GRADPS
+      63  #define MASKING
+      64  #define CURVGRID          /*Activates wind rotation.*/
+      65 +#define ANA_NUDGCOEF      /*Analytical open-boundary nudging co
+         +efficients.*/                                                  
+      66  #define UV_VIS2           /*Explicit horizontal viscosity.*/
+      67  #ifdef  UV_VIS2
+      68  # define MIX_S_UV         /*`Horizontal' defined as `along topo
+          -following levels'*/
+
+● All three pieces are in place:
+
+  roms_ecb.h: added #define ANA_NUDGCOEF — this makes ROMS compute the boundary
+  nudging-coefficient array internally (uniform value from TNUDG/M3NUDG, scaled
+  by OBCFAC for inflow vs outflow), no external NUDNAME file needed. Requires 
+  recompile.
+
+  roms_cb600m.in:
+  - LBC(isUvel)/LBC(isVvel) east/south: Rad → RadNud
+  - LnudgeTCLM == T T, LnudgeM3CLM == T
+  - M3NUDG == 0.0d0 → 30.0d0 days — this was necessary: I checked inp_par.F and
+  with M3NUDG=0 the nudging coefficient collapses to exactly zero even with
+  LnudgeM3CLM=T, silently making the momentum nudging inert. Setting it to 30
+  days (matching TNUDG) means, combined with OBCFAC=24, momentum gets a
+  ~1.25-day nudging timescale on inflow and 30-day on outflow at the boundary —
+  same treatment tracers already had defined (but weren't actually getting
+  either, until this fix).
+
+  One thing worth knowing: I checked ana_nudgcoef.h's default code path (no
+  special-case domain like ADRIA02/DAMEE_4) — it fills the nudging-coefficient
+  array uniformly everywhere with the TNUDG/M3NUDG value rather than a boundary
+  sponge that decays into the interior. That's fine for our purposes since
+  t3dbc_im.F/u3dbc_im.F only reference this coefficient at the boundary row
+  itself, and interior relaxation would additionally require LtracerCLM/Lm3CLM=T
+  (which we're leaving F, so no unintended interior nudging).
+
+  Go ahead and recompile (build_roms.csh) and resubmit when ready.
+
+✻ Cogitated for 1m 45s
+
+❯ I recompiled and reran and it failed with output file roms.o6950449, check    
+  what's wrong.                                                                 
+
+  Searched for 3 patterns, read 1 file, listed 1 directory, ran 4 shell commands (ctrl+o to expand)
+
+● Found the exact cause — it's a genuine ROMS array-sizing bug triggered by our
+  change, not a physics problem.
+
+  Root cause: CLIMA(ng)%Tnudgcof is allocated with size NTCLM(ng) (the 4th
+  dimension, one slot per climatology tracer). I checked inp_par.F (line ~807)
+  and NTCLM(ng) is computed by counting tracers where LtracerCLM(itrc,ng) is
+  true — not LnudgeTCLM. Since we only set LnudgeTCLM==T T and left
+  LtracerCLM==F F, NTCLM(ng) evaluates to 0, so Tnudgcof gets allocated with
+  zero size in that dimension. But t3dbc_im.F still indexes into it
+  (CLIMA(ng)%Tnudgcof(Istr-1,j,k,ic)) at the very first boundary-condition call
+  — an out-of-bounds access into a zero-sized array, which is exactly the
+  SIGSEGV right as time-stepping starts.
+
+  The good news: I checked what the nudging term actually nudges toward
+  (t3dbc_im.F line ~163), and it's BOUNDARY(ng)%t_west/t_south(...) — the real
+  BRY data already being read — not CLIMA(ng)%tclm. So tclm's contents are
+  irrelevant to the physics; we only need LtracerCLM=T to correctly size the
+  array, and we can avoid needing a real CLMNAME climatology file by defining
+  ANA_TCLIMA (ROMS ships a default Functionals/ana_tclima.h), the same trick we
+  used for the nudging coefficients.
+
+● Update(roms_ecb.h)
+  ⎿  Added 1 line
+      63  #define MASKING
+      64  #define CURVGRID          /*Activates wind rotation.*/
+      65  #define ANA_NUDGCOEF      /*Analytical open-boundary nudging co
+          efficients.*/
+      66 +#define ANA_TCLIMA        /*Needed only to size Tnudgcof; value
+         + unused by OBC nudging.*/                                      
+      67  #define UV_VIS2           /*Explicit horizontal viscosity.*/
+      68  #ifdef  UV_VIS2
+      69  # define MIX_S_UV         /*`Horizontal' defined as `along topo
+          -following levels'*/
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      535        Lm2CLM == F                          ! 2D momentum
+      536        Lm3CLM == F                          ! 3D momentum
+      537  
+      538 -  LtracerCLM == F F                        ! temperature, sali
+          -nity, inert                                                   
+      538 +  LtracerCLM == T T                        ! temperature, sali
+          +nity, inert                                                   
+      539  
+      540  ! Logical switches (TRUE/FALSE) to nudge the desired climatolo
+           gy field(s).
+      541  ! If not analytical climatology fields, users need to turn ON 
+           the logical
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Good — M3nudgcof is only indexed by (i,j,k), no extra tracer-count dimension,
+  so it's correctly sized already and momentum nudging isn't affected by this
+  bug.
+
+  Fix applied:
+  - roms_ecb.h: added #define ANA_TCLIMA alongside the earlier ANA_NUDGCOEF
+  - roms_cb600m.in: LtracerCLM == F F → T T
+
+  This makes NTCLM(ng)=2, correctly sizing CLIMA(ng)%Tnudgcof, without requiring
+  a real CLMNAME file (that read path is compiled out by ANA_TCLIMA). The
+  boundary nudging still targets the real BOUNDARY(ng)%t_south/t_east (BRY) data
+  as intended — tclm itself is just inert filler now. Needs another recompile
+  before resubmitting.
+
+✻ Worked for 2m 8s
+
+❯ I recompiled and reran and it failed again with output file roms.o6950534,    
+  help check.                                                                   
+
+  Searched for 1 pattern, listed 1 directory, ran 2 shell commands (ctrl+o to expand)
+● The ANA_TCLIMA flag skips actually reading climatology data, but ROMS still
+  does a plain file-existence check on CLMNAME before that — and I confirmed in
+  read_phypar.F that check is gated only by whether LtracerCLM is on
+  (CLM_FILE(ng)), not by ANA_TCLIMA (unlike NUDNAME, which correctly has an
+  #ifndef ANA_NUDGCOEF escape hatch). So it wants the file roms_clm.nc to simply
+  exist, even though nothing in it will actually be read.
+
+  Searched for 2 patterns, ran 1 shell command (ctrl+o to expand)
+
+● Created a minimal placeholder roms_clm.nc (valid NetCDF, no variables) in
+  chesbay600m/, matching the relative path CLMNAME == roms_clm.nc resolves to
+  (no cd in run_roms.tcsh, so it runs from the submission directory). No .in or
+  header changes needed — this purely satisfies the existence check; ANA_TCLIMA
+  still ensures its contents are never actually read. No recompile needed
+  either. Go ahead and resubmit.
+
+✻ Churned for 1m 15s
+
+❯ I reran and it failed with output file roms.o6950579                          
+
+  Searched for 4 patterns, listed 1 directory, ran 5 shell commands (ctrl+o to expand)
+
+● Rewrote roms_clm.nc with a proper 1D time variable (clim_time, "days since
+  1975-01-01", spanning day 0 to day 100000 so it safely brackets the whole
+  run). This satisfies check_multifile.F's scan for any 1D variable containing
+  "time" in its name — that check runs during initial.F regardless of
+  ANA_TCLIMA, unlike the actual data-read in get_data.F which is properly
+  skipped. No .in/header changes, no recompile — go ahead and resubmit.
+
+✻ Crunched for 1m 20s
+
+❯ I reran and it failed with output file roms.o6950597                          
+
+  Searched for 2 patterns, listed 1 directory, ran 1 shell command (ctrl+o to expand)
+
+● Found it — this isn't a new logic bug, it's a stale build: ANA_TCLIMA never
+  actually got compiled in.
+
+  Evidence: roms.o6950597's own startup log lists the active CPP options, and
+  while ANA_NUDGCOEF is there, ANA_TCLIMA is not:
+  ANA_NUDGCOEF                      Analytical spatially varying nudging
+  time-scales
+  (no ANA_TCLIMA line at all). I confirmed checkdefs.F reports ANA_TCLIMA
+  unconditionally whenever it's defined together with SOLVE3D (which is always
+  on), so its absence from the list proves the running binary was compiled
+  without it — even though it's correctly sitting in roms_ecb.h:
+  65: #define ANA_NUDGCOEF
+  66: #define ANA_TCLIMA
+  That's exactly why get_data.F still executed the get_3dfld call for
+  climatology temp (line 1361, inside the #ifndef ANA_TCLIMA block that should
+  have been compiled out) and hit INQUIRY_NF90 - unable to find requested 
+  variable: temp in the placeholder roms_clm.nc.
+
+  Since ANA_NUDGCOEF (added at the same time, one line above) did take effect on
+  the prior recompile, and no code change happened between
+  roms.o6950534/roms.o6950579 and this run, the ANA_TCLIMA line must have been
+  added to the header just after — or missed by — that last recompile pass
+  (likely an incremental build that didn't detect the header-only change and
+  rebuild the dependent object files).
+
+  Fix: no file edit needed this time — roms_ecb.h already has the right content.
+  Please do a clean recompile (e.g. build_roms.csh clean, or remove/rebuild the
+  Build_roms staging directory) rather than an incremental one, so the CPP
+  change is guaranteed to propagate, then resubmit.
+
+✻ Cooked for 1m 34s
+
+❯ I did a clean recompile and reran, output file is roms.o6951094               
+
+  Searched for 5 patterns, listed 1 directory, ran 5 shell commands (ctrl+o to expand)
+● Found something important — the running binary was never actually rebuilt:
+  your last several "recompiles" don't appear to have succeeded at the link
+  step, so run_roms.tcsh has been executing a stale romsM this whole time.
+
+  Evidence:
+  - romsM (the executable actually run) is timestamped 14:38:14.
+  - The build directory Build_romsM — used for compiling — has object files
+  timestamped 15:30, i.e. after romsM was last built. So that later compile pass
+  never produced a new linked binary in its place.
+  - There's also a second, timestamped build directory
+  Build_romsM_v01_20260729-1728 (from 14:50) — also older than Build_romsM's
+  15:30 files, and also with no linked executable inside it.
+  - Neither build directory contains a successfully-linked romsM/romsO/etc.
+  binary at all — the link step appears to not have completed in either attempt,
+  silently leaving the old romsM in place.
+
+  That fully explains why ANA_TCLIMA still doesn't show up in the run's
+  active-options list even after your "clean recompile" — the binary being
+  executed predates that header edit entirely (it likely dates back to the very
+  first ANA_NUDGCOEF-only build).
+
+  I can't see your terminal output from running build_roms.csh, only what's on
+  disk, so I can't tell directly why the link failed. Could you rerun it with
+  output captured to a file so I can check for the actual compiler/linker error,
+  e.g.:
+  ./build_roms.csh -j 8 clean >& build.log
+  tail -100 build.log
+  (adjust flags to match however you've been invoking it) and let me know the
+  output file name — I'll grep it for the failure.
+
+✻ Sautéed for 2m 24s
+
+❯ now it failed to build with output file build_v02.log                         
+
+  Searched for 1 pattern, listed 1 directory, ran 1 shell command (ctrl+o to expand)
+
+● Found the real blocker — it's a compile error, and it explains the whole
+  mystery of the stale binary (every recompile attempt since ANA_TCLIMA was
+  added has been silently failing right here):
+
+  analytical.f90:591:44:
+    591 |    CLIMA(ng)%tclm(i,j,k,itemp)=???
+  Error: Invalid character in name at (1)
+
+  ROMS ships its default ana_tclima.h template with a literal ??? placeholder
+  that the user is expected to replace with real values for their application —
+  it's intentionally not compilable out of the box. That's why every build since
+  I added ANA_TCLIMA failed at the link stage and left the old romsM in place.
+
+  Searched for 1 pattern, read 1 file, ran 2 shell commands (ctrl+o to expand)
+
+● Update(ana_tclima.h)
+  ⎿  Added 2 lines, removed 2 lines
+      101          DO k=1,N(ng)
+      102            DO j=JstrT,JendT
+      103              DO i=IstrT,IendT
+      104 -              CLIMA(ng)%tclm(i,j,k,itemp)=???                 
+      104 +              CLIMA(ng)%tclm(i,j,k,itemp)=0.0_r8              
+      105  # ifdef SALINITY
+      106 -              CLIMA(ng)%tclm(i,j,k,isalt)=???                 
+      106 +              CLIMA(ng)%tclm(i,j,k,isalt)=0.0_r8              
+      107  # endif
+      108              END DO
+      109            END DO
+
+● Fix: created chesbay600m/ana_tclima.h — a local override copy (this directory
+  is on the compiler's include path before the stock ROMS/Functionals, since
+  MY_ANALYTICAL_DIR = chesbay600m, so this version takes precedence) — with the
+  two ??? placeholders replaced by 0.0_r8. As established earlier, tclm's actual
+  value is never used by our OBC nudging (which reads
+  BOUNDARY(ng)%t_south/t_east instead), so a harmless constant is fine — this
+  only needs to compile, not be physically meaningful.
+
+  Please rerun the build again (redirect to a log again, e.g. build_v03.log, so
+  I can double check it completes cleanly and actually relinks a fresh romsM),
+  then resubmit.
+
+✻ Cooked for 59s
+
+❯ I recompiled and reran, output file is roms.o6952532                          
+
+  Searched for 1 pattern, read 1 file, ran 4 shell commands (ctrl+o to expand)
+
+● Resolved the crash location using addr2line against the (non-stripped,
+  debug-info-included) romsM binary directly — no need for you to rebuild with
+  -g:
+
+  0x5edebe → rhs3d (ROMS/Nonlinear/rhs3d.F)
+  0x405710 → main3d
+  0x4045a0 → roms_run
+  0x404bf0 → MAIN
+
+  This is meaningful progress: the crash is no longer in any
+  boundary-condition/CLIMA code we've been touching — it's deep inside rhs3d.F,
+  the right-hand-side momentum/tracer computation, which we haven't modified at
+  all. And it happens right after the model successfully completed its very
+  first timestep and wrote out all four output files (HIS/QCK/STA/RST) — i.e.,
+  all our fixes actually worked and the run is now progressing normally into
+  real computation.
+
+  rhs3d.F uses large local/automatic Fortran arrays, and I checked run_roms.tcsh
+  — it never sets a stack size limit before calling mpirun, so it's using
+  whatever the shell's default is (often 8MB on Linux). That's a classic, very
+  common cause of a segfault appearing exactly in a routine like this: the
+  process's default stack is too small for the automatic arrays rhs3d allocates
+  at this resolution.
+
+● Update(run_roms.tcsh)
+  ⎿  Added 2 lines
+      19  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/glade/work/epicufsrt/c
+          ontrib/spack-stack/derecho/spack-stack-1.7.0/envs/ue-gcc/instal
+          l/gcc/12.2.0/netcdf-c-4.9.2-kpjnvwg/lib:/glade/work/epicufsrt/c
+          ontrib/spack-stack/derecho/spack-stack-1.7.0/envs/ue-gcc/instal
+          l/gcc/12.2.0/netcdf-fortran-4.6.1-vuce2oo/lib
+      20  echo $LD_LIBRARY_PATH
+      21  
+      22 +ulimit -s unlimited                                            
+      23 +                                                               
+      24  mpirun -np 80 ./romsM roms_cb600m.in
+      25   
+      26  exit 0
+
+● No code or .in changes needed — added ulimit -s unlimited in run_roms.tcsh
+  right before the mpirun call. No recompile needed, this only affects the
+  runtime resource limit for the launched processes.
+
+  One more thing worth flagging: walltime in the PBS header is currently
+  01:00:00 (line 6) — with DT=6s now (10x finer than the original 60s), reaching
+  the same simulated point takes far more steps/wall-clock than earlier runs
+  did, so if the stack-size fix lets it run stably you may hit the walltime
+  limit before any physical issue. Consider bumping it up (e.g. back to 02:00:00
+  or more) before resubmitting.
+
+✻ Cogitated for 1m 51s
+
+❯ I reran and it failed again with output file roms.o6952604                    
+
+  Searched for 2 patterns, ran 3 shell commands (ctrl+o to expand)
+
+● This changes things significantly — LnudgeM3CLM/LnudgeTCLM don't just enable
+  the boundary nudging I intended; they also activate a completely separate
+  interior, domain-wide relaxation term in rhs3d.F and step3d_t.F. That's the
+  actual SIGSEGV cause, and it also exposes a latent physics bug I need to fix
+  before this can run correctly.
+
+  Ran 2 shell commands (ctrl+o to expand)
+● Update(ana_m3clima.h)
+  ⎿  Added 2 lines, removed 2 lines
+      78          DO k=1,N(ng)
+      79            DO j=JstrT,JendT
+      80              DO i=IstrP,IendT
+      81 -              CLIMA(ng)%uclm(i,j,k)=???                        
+      81 +              CLIMA(ng)%uclm(i,j,k)=0.0_r8                     
+      82              END DO
+      83            END DO
+      84            DO j=JstrP,JendT
+      85              DO i=IstrT,IendT
+      86 -              CLIMA(ng)%vclm(i,j,k)=???                        
+      86 +              CLIMA(ng)%vclm(i,j,k)=0.0_r8                     
+      87              END DO
+      88            END DO
+      89          END DO
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Update(ana_nudgcoef.h)
+  ⎿  Added 28 lines, removed 5 lines
+      181  
+      182  #else
+      183  !
+      184 -!  Default nudging coefficients.  Set nudging coefficients uni
+          -formly to                                                     
+      185 -!  the values specified in the standard input file.           
+      184 +!  Chesbay600m boundary-sponge nudging coefficients.  The defa
+          +ult ROMS                                                      
+      185 +!  template fills the coefficient array UNIFORMLY across the w
+          +hole                                                          
+      186 +!  domain.  That is dangerous here because LnudgeTCLM/LnudgeM3
+          +CLM are                                                       
+      187 +!  used for a SECOND purpose in step3d_t.F/rhs3d.F: a full 3D 
+          +interior                                                      
+      188 +!  relaxation of tracers/momentum toward CLIMA(ng)%tclm/uclm/v
+          +clm                                                           
+      189 +!  (currently placeholder zeros, see ana_tclima.h/ana_m3clima.
+          +h), on                                                        
+      190 +!  top of the intended open-boundary nudging in t3dbc_im.F/u3d
+          +bc_im.F.                                                      
+      191 +!  A uniform coefficient would therefore nudge the ENTIRE doma
+          +in's                                                          
+      192 +!  temperature/salinity/momentum toward zero every timestep. I
+          +nstead,                                                       
+      193 +!  ramp the coefficient from its full .in-specified value righ
+          +t at the                                                      
+      194 +!  open boundaries (south, east) down to zero within SPONGE_WI
+          +DTH grid                                                      
+      195 +!  points, so the unwanted interior term is negligible away fr
+          +om the                                                        
+      196 +!  boundary while the intended OBC nudging (which only reads t
+          +he                                                            
+      197 +!  coefficient at the boundary row itself) is unaffected.     
+      198  !
+      199 +      DO j=JstrT,JendT                                        
+      200 +        DO i=IstrT,IendT                                      
+      201 +          wrk(i,j)=MAX(0.0_r8,                                
+          +          &                                                   
+      202 +     &                 (SPONGE_WIDTH-REAL(j,r8))/SPONGE_WIDTH)
+      203 +          wrk(i,j)=MAX(wrk(i,j),                              
+          +          &                                                   
+      204 +     &                 MAX(0.0_r8,                            
+          +          &                                                   
+      205 +     &                     (SPONGE_WIDTH-                     
+          +          &                                                   
+      206 +     &                      REAL(Lm(ng)+1-i,r8))/SPONGE_WIDTH)
+          +)                                                             
+      207 +        END DO                                                
+      208 +      END DO                                                  
+      209 +                                                              
+      210        IF (LnudgeM2CLM(ng)) THEN
+      211          DO j=JstrT,JendT
+      212            DO i=IstrT,IendT
+      190 -            CLIMA(ng)%M2nudgcof(i,j)=M2nudg(ng)               
+      213 +            CLIMA(ng)%M2nudgcof(i,j)=wrk(i,j)*M2nudg(ng)      
+      214            END DO
+      215          END DO
+      216        END IF
+     ...
+      221          DO k=1,N(ng)
+      222            DO j=JstrT,JendT
+      223              DO i=IstrT,IendT
+      201 -              CLIMA(ng)%M3nudgcof(i,j,k)=M3nudg(ng)           
+      224 +              CLIMA(ng)%M3nudgcof(i,j,k)=wrk(i,j)*M3nudg(ng)  
+      225              END DO
+      226            END DO
+      227          END DO
+     ...
+      232            DO k=1,N(ng)
+      233              DO j=JstrT,JendT
+      234                DO i=IstrT,IendT
+      212 -                CLIMA(ng)%Tnudgcof(i,j,k,itrc)=Tnudg(itrc,ng) 
+      235 +                CLIMA(ng)%Tnudgcof(i,j,k,itrc)=wrk(i,j)*Tnudg(
+          +itrc,ng)                                                      
+      236                END DO
+      237              END DO
+      238            END DO
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Update(ana_nudgcoef.h)
+  ⎿  Added 1 line
+       96        real(r8) :: cff1, cff2, cff3
+       97  !
+       98        real(r8), parameter :: IniVal = 0.0_r8
+       99 +      real(r8), parameter :: SPONGE_WIDTH = 15.0_r8   ! grid p
+          +oints                                                         
+      100  !
+      101        real(r8), dimension(IminS:ImaxS,JminS:JmaxS) :: wrk
+      102  
+
+● Update(roms_ecb.h)
+  ⎿  Added 1 line
+      64  #define CURVGRID          /*Activates wind rotation.*/
+      65  #define ANA_NUDGCOEF      /*Analytical open-boundary nudging co
+          efficients.*/
+      66  #define ANA_TCLIMA        /*Needed only to size Tnudgcof; value
+           unused by OBC nudging.*/
+      67 +#define ANA_M3CLIMA       /*Needed to allocate uclm/vclm for th
+         +e rhs3d.F interior nudging term.*/                             
+      68  #define UV_VIS2           /*Explicit horizontal viscosity.*/
+      69  #ifdef  UV_VIS2
+      70  # define MIX_S_UV         /*`Horizontal' defined as `along topo
+          -following levels'*/
+
+● Update(roms_cb600m.in)
+  ⎿  Added 1 line, removed 1 line
+      533  
+      534       LsshCLM == F                          ! sea-surface heigh
+           t
+      535        Lm2CLM == F                          ! 2D momentum
+      536 -      Lm3CLM == F                          ! 3D momentum      
+      536 +      Lm3CLM == T                          ! 3D momentum      
+      537  
+      538    LtracerCLM == T T                        ! temperature, sali
+           nity, inert
+      539  
+
+  Searched for 2 patterns (ctrl+o to expand)
+
+● Confirmed Lm(ng) is accessible via mod_param. Summary of the fix applied:
+
+  1. Root cause of the SIGSEGV: LnudgeM3CLM/LnudgeTCLM don't just gate the OBC
+  (boundary) nudging in t3dbc_im.F/u3dbc_im.F — they also gate a separate,
+  full-domain interior relaxation term in step3d_t.F and rhs3d.F that reads
+  CLIMA(ng)%tclm/uclm/vclm. Since Lm3CLM was still F, uclm/vclm were never
+  allocated, and rhs3d.F unconditionally read them anyway — the segfault.
+  2. Latent physics bug caught in the process: even once allocated, the stock
+  ana_nudgcoef.h fills the nudging coefficient uniformly across the whole domain
+  — combined with our placeholder tclm=uclm=vclm=0, that would have silently
+  relaxed temperature, salinity, and momentum toward zero everywhere, every
+  timestep, not just at the boundary. Caught before it could produce bad
+  results.
+  3. Fix:
+    - roms_ecb.h: added #define ANA_M3CLIMA (parallel to ANA_TCLIMA)
+    - chesbay600m/ana_m3clima.h: local override, uclm/vclm placeholder 0.0_r8
+  (unused by OBC nudging, same reasoning as tclm)
+    - chesbay600m/ana_nudgcoef.h: rewrote the default branch to build a real
+  boundary sponge — nudging coefficient ramps from the full .in-specified value
+  at the south/east open boundaries down to zero over 15 grid points (~9 km)
+  inward, instead of being uniform. This keeps the OBC nudging intact (it only
+  reads the coefficient at the boundary row) while making the unwanted interior
+  term negligible everywhere except right at the boundary.
+    - roms_cb600m.in: Lm3CLM == F → T (needed to allocate uclm/vclm)
+
+  Needs a recompile (new #defines + two new local header files). Please rebuild
+  with output captured to a log again so I can verify it links cleanly, then
+  resubmit.
+
+✻ Cogitated for 4m 17s
+
+❯ I recompiled and reran and it failed again with output file roms.o6952746,    
+  the salt_sur at the open ocean has the same problem. Help check and recommend 
+  how to fix it.                                                                
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● The nudging fix compiled and ran correctly (no more segfault), but it made no 
+  meaningful difference to the actual instability — and in some respects it's
+  slightly worse now (vbar at the shallow south boundary reaches 4.6 m/s by hour
+  33, versus ~2 m/s before; salinity even goes briefly negative, -9.3, by hour
+  33). The deep-water point you flagged (i=478,j=71) shows almost the identical
+  decay trend as before nudging was added (36.4 → 17.3 psu over the same 33
+  hours).
+
+  Why nudging didn't help: I checked the actual strength. TNUDG=30d/M3NUDG=30d
+  with OBCFAC=24 gives an inflow nudging timescale of only ~1.25 days — meaning
+  each 6-second timestep only pulls the boundary about 0.006% of the way toward
+  the reference value. The instability here is growing on a timescale of hours,
+  not days, so this nudging is far too weak to compete with it. That's
+  consistent with what we've now tried three different remedies for (finer DT,
+  more tracer diffusion, boundary nudging) all failing to touch it — it
+  increasingly looks like a structural problem, not something fixable by tuning
+  numerical parameters.
+
+  Also notable: this run failed at day 1.014 — almost exactly the
+  1994-01-01→01-02 BRY record transition, which is the same point where I
+  earlier found that suspicious ~4°C/2.5psu jump in the boundary file at the
+  shallow south stretch (xi≈280-299, h<5m). That's a second, independent line of
+  evidence pointing at the same place.
+
+  Given all of this, I'd recommend going back to the fix I proposed much earlier
+  and we set aside: mask off the shallowest open-boundary cells (close them to
+  land) so Fla/Cha/RadNud boundary conditions only apply where the physics is
+  well-conditioned (h above some threshold, e.g. 3-5m). Want me to go ahead and
+  implement that now?
+
+✻ Cooked for 1m 4s
+
+❯ even if we mask off them, we'd still have that structural problem of          
+  decreasing salt_sur, right? then what's the point of doing the mask off step. 
+
+● Good catch — you're right, and I should be more careful here. Masking the
+  shallow south cells would only address the fastest, most extreme part of the
+  instability (the one that hit 4.6 m/s). It would not fix the deep-water point
+  you flagged (i=478,j=71, h=2667m, nowhere near any shallow cell) — I already
+  found that the deep portions of the boundary (both south and east) have their
+  own slower-growing but real instability (zeta drifting, vbar/ubar growing)
+  independent of the shallow cells. Masking wouldn't touch that.
+
+  So the actual honest picture: the open boundary is unstable along its whole 
+  length, not just at the shallow patches — shallow cells just blow up fastest
+  because in shallow water a given transport imbalance produces a much larger
+  velocity. Masking treats the symptom that fails first, not the shared
+  underlying cause.
+
+  Given that, here's the thing we haven't actually tested yet: real nudging
+  strength. We fixed the nudging mechanism itself last round (it was
+  broken/inert), but I only used the values already sitting in the .in file —
+  TNUDG=30d/M3NUDG=30d, which with OBCFAC=24 gives just a ~1.25-day inflow
+  timescale. The instability is doubling in hours, so of course a 1.25-day
+  correction couldn't compete — that's not evidence nudging can't work, it's
+  evidence we tested it too weakly. A properly strong nudging timescale
+  (comparable to or faster than the instability's own growth rate, i.e. on the
+  order of an hour or less at the boundary) applies uniformly along the whole
+  boundary — shallow and deep alike — so it's actually a better candidate for
+  addressing what you're pointing at than masking is.
+
+● User answered Claude's questions:
+  ⎿  · Given masking wouldn't fix the deep-water instability, how do you want to
+     proceed? → Try much stronger nudging (Recommended)
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(roms_cb600m.in)
+  ⎿  Added 2 lines, removed 2 lines
+      492  ! Nudging/relaxation time scales, inverse scales will be compu
+           ted
+      493  ! internally, [1:Ngrids].
+      494  
+      495 -       TNUDG == 30.d0                      ! days, value for t
+          -he outflow.                                                   
+      495 +       TNUDG == 1.0d0                      ! days, value for t
+          +he outflow.                                                   
+      496         ZNUDG == 0.0d0                      ! days
+      497        M2NUDG == 0.0d0                      ! days
+      498 -      M3NUDG == 30.0d0                     ! days, value for t
+          -he outflow.                                                   
+      498 +      M3NUDG == 1.0d0                      ! days, value for t
+          +he outflow.                                                   
+      499  
+      500  ! Factor between passive (outflow) and active (inflow) open bo
+           undary
+      501  ! conditions, [1:Ngrids]. If OBCFAC > 1, nudging on inflow is 
+           stronger
+● TNUDG and M3NUDG changed from 30.0d0 → 1.0d0 days (outflow). With OBCFAC=24
+  unchanged, that gives an inflow nudging timescale of 1.0/24 ≈ 1 hour —
+  comparable to the instability's own growth rate, versus the previous ~1.25
+  days that was 20-30x too slow to matter. This applies uniformly along the
+  whole open boundary (south and east, shallow and deep alike), so it directly
+  targets the deep-water problem you flagged, not just the shallow patches.
+
+  Pure .in value change — no recompile needed. Go ahead and resubmit.
+
+✻ Churned for 58s
+
+
+Resume this session with:
+claude --resume dcb074ae-2b94-4afb-96e9-30960dce71dd

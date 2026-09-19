@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(module load *)",
+      "Bash(ncdump -h /glade/u/home/lgchen/ChesROMS/input_files_4UMD/initial_1993-12-31.nc)",
+      "Bash(ncdump -v ocean_time /glade/u/home/lgchen/ChesROMS/input_files_4UMD/initial_1993-12-31.nc)",
+      "Bash(ncdump -h /glade/u/home/lgchen/ChesROMS/input_files_4UMD/bry_199401.nc)",
+      "Bash(python3 *)",
+      "Bash(find / -maxdepth 6 -iname \"check_multifile.F\")",
+      "Read(//glade/work/lgchen/project/ChesROMS/**)",
+      "Bash(ncdump -v bry_time /glade/u/home/lgchen/ChesROMS/input_files_4UMD/bry_199401.nc)",
+      "Bash(awk ' *)",
+      "Bash(awk 'NR%50==1')"
+    ]
+  }
+}

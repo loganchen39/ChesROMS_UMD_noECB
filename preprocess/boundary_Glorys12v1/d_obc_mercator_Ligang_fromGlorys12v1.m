@@ -1,0 +1,466 @@
+%
+%  D_OBC_MERCATOR:  Driver script to create a ROMS boundary conditions
+%
+%  This a user modifiable script that can be used to prepare ROMS open
+%  boundary conditions NetCDF file from Mercator dataset. It sets-up all
+%  the necessary parameters and variables. USERS can use this as a
+%  prototype for their application.
+%
+
+% svn $Id$
+%=========================================================================%
+%  Copyright (c) 2002-2025 The ROMS Group                                 %
+%    Licensed under a MIT/X style license                                 %
+%    See License_ROMS.md                            Hernan G. Arango      %
+%=========================================================================%
+
+% Set input/output NetCDF files.
+
+%OPR_Dir = '/home/arango/ocean/toms/repository/Projects/philex/Mercator/OPR';
+%RTR_Dir = '/home/arango/ocean/toms/repository/Projects/philex/Mercator/RTR';
+
+Glorys_Dir = '/glade/u/home/lgchen/ChesROMS/ChesROMS_UMD/data/glorys12v1';
+
+GRDname = '/glade/u/home/lgchen/ChesROMS/ChesROMS_UMD/preprocess/grid/grid_UMD.nc';
+BRYname = 'bry_ChesROMS-UMD_fromGlorys12v1_199401_daily_v01.nc';
+
+CREATE = 1;                      % logical switch to create NetCDF
+WRITE  = 1;                      % logical swithc to write out data
+report = 1;                      % report vertical grid information
+
+% Get number of grid points.
+
+%[Lr,Mr]=size(nc_read(GRDname,'h'));
+[Lr,Mr]=size(ncread(GRDname,'h'));
+
+Lu = Lr-1;   Lv = Lr;
+Mu = Mr;     Mv = Mr-1;
+
+%--------------------------------------------------------------------------
+% Set full path of Mercator files for boundary conditions.
+%--------------------------------------------------------------------------
+
+%Tfile1=dir(fullfile(RTR_Dir,'*_gridT_*.nc.gz'));
+%Ufile1=dir(fullfile(RTR_Dir,'*_gridU_*.nc.gz'));
+%Vfile1=dir(fullfile(RTR_Dir,'*_gridV_*.nc.gz'));
+
+%nfiles1=length(Tfile1);
+
+%Tfile2=dir(fullfile(OPR_Dir,'*_gridT_*.nc.gz'));
+%Ufile2=dir(fullfile(OPR_Dir,'*_gridU_*.nc.gz'));
+%Vfile2=dir(fullfile(OPR_Dir,'*_gridV_*.nc.gz'));
+
+%nfiles2=length(Tfile2);
+
+%Tfile=[Tfile1; Tfile2];
+%Ufile=[Ufile1; Ufile2];
+%Vfile=[Vfile1; Vfile2];
+
+%nfiles=length(Tfile);
+
+%--------------------------------------------------------------------------
+%  Set application parameters in structure array, S.
+%--------------------------------------------------------------------------
+
+S.ncname      = BRYname;     % output NetCDF file
+
+S.spherical   = 1;           % spherical grid
+
+S.boundary(1) = 0;           % process western  boundary segment (0=no)
+S.boundary(2) = 1;           % process eastern  boundary segment (0=no)
+S.boundary(3) = 1;           % process southern boundary segment (0=no)
+S.boundary(4) = 0;           % process northern boundary segment (0=no)
+
+S.Lm          = Lr-2;        % number of interior RHO-points, X-direction
+S.Mm          = Mr-2;        % number of interior RHO-points, Y-direction
+%S.N          = 42;          % number of vertical levels at RHO-points
+S.N           = 20;          % number of vertical levels at RHO-points
+S.NT          = 2;           % total number of tracers
+
+S.Vtransform  = 2;           % vertical transfomation equation
+S.Vstretching = 2;           % vertical stretching function
+
+S.theta_s     = 7.0;         % S-coordinate surface control parameter
+S.theta_b     = 0.1;         % S-coordinate bottom control parameter
+S.Tcline      = 150.0;       % S-coordinate surface/bottom stretching width
+S.hc          = S.Tcline;    % S-coordinate stretching width
+
+%--------------------------------------------------------------------------
+%  Set grid variables.
+%--------------------------------------------------------------------------
+
+S.h           = ncread(GRDname, 'h');            % bathymetry
+
+S.lon_rho     = ncread(GRDname, 'lon_rho');      % RHO-longitude
+S.lat_rho     = ncread(GRDname, 'lat_rho');      % RHO-latitude
+
+S.lon_u       = ncread(GRDname, 'lon_u');        % U-longitude
+S.lat_u       = ncread(GRDname, 'lat_u');        % U-latitude
+
+S.lon_v       = ncread(GRDname, 'lon_v');        % V-longitude
+S.lat_v       = ncread(GRDname, 'lat_v');        % V-latitude
+
+S.mask_rho    = ncread(GRDname, 'mask_rho');     % RHO-mask
+S.mask_u      = ncread(GRDname, 'mask_u');       % U-mask
+S.mask_v      = ncread(GRDname, 'mask_v');       % V-mask
+
+S.angle       = ncread(GRDname, 'angle');        % curvilinear angle
+
+%  Set boundary conditions locations.
+
+S.lon_rho_west =S.lon_rho(1,:);
+S.lon_u_west   =S.lon_u(1,:);
+S.lon_v_west   =S.lon_v(1,:);
+
+S.lat_rho_west =S.lat_rho(1,:);
+S.lat_u_west   =S.lat_u(1,:);
+S.lat_v_west   =S.lat_v(1,:);
+
+S.lon_rho_east =S.lon_rho(end,:);
+S.lon_u_east   =S.lon_u(end,:);
+S.lon_v_east   =S.lon_v(end,:);
+
+S.lat_rho_east =S.lat_rho(end,:);
+S.lat_u_east   =S.lat_u(end,:);
+S.lat_v_east   =S.lat_v(end,:);
+
+S.lon_rho_south=S.lon_rho(:,1);
+S.lon_u_south  =S.lon_u(:,1);
+S.lon_v_south  =S.lon_v(:,1);
+
+S.lat_rho_south=S.lat_rho(:,1);
+S.lat_u_south  =S.lat_u(:,1);
+S.lat_v_south  =S.lat_v(:,1);
+
+S.lon_rho_north=S.lon_rho(:,end);
+S.lon_u_north  =S.lon_u(:,end);
+S.lon_v_north  =S.lon_v(:,end);
+
+S.lat_rho_north=S.lat_rho(:,end);
+S.lat_u_north  =S.lat_u(:,end);
+S.lat_v_north  =S.lat_v(:,end);
+
+%  Set vertical grid variables.
+addpath(genpath('/glade/u/home/lgchen/lgchen_work/bin/ChesROMS/roms_matlab'));
+
+kgrid=0;                                          % RHO-points
+
+[S.s_rho, S.Cs_r]=stretching(S.Vstretching,                           ...
+                             S.theta_s, S.theta_b, S.hc, S.N,         ...
+                             kgrid, report);
+
+kgrid=1;                                          % W-points
+
+[S.s_w,   S.Cs_w]=stretching(S.Vstretching, ...
+                             S.theta_s, S.theta_b, S.hc, S.N,         ...
+                             kgrid, report);
+
+%  Compute ROMS model depths.  Ignore free-sruface contribution
+%  so interpolation is bounded below mean sea level.
+
+ssh=zeros(size(S.h));
+
+igrid=1;
+[S.z_r]=set_depth(S.Vtransform, S.Vstretching,                        ...
+                  S.theta_s, S.theta_b, S.hc, S.N,                    ...
+                  igrid, S.h, ssh, report);
+      
+igrid=3;
+[S.z_u]=set_depth(S.Vtransform, S.Vstretching,                        ...
+                  S.theta_s, S.theta_b, S.hc, S.N,                    ...
+                  igrid, S.h, ssh, report);
+
+igrid=4;
+[S.z_v]=set_depth(S.Vtransform, S.Vstretching,                        ...
+                  S.theta_s, S.theta_b, S.hc, S.N,                    ...
+                  igrid, S.h, ssh, report);
+
+%  Compute ROMS vertical level thicknesses (m).
+      
+N=S.N;
+igrid=5;
+[S.z_w]=set_depth(S.Vtransform, S.Vstretching, ...
+                  S.theta_s, S.theta_b, S.hc, S.N, ...
+                  igrid, S.h, ssh, report);
+
+S.Hz=S.z_w(:,:,2:N+1)-S.z_w(:,:,1:N);
+
+%---------------------------------------------------------------------------
+%  Create boundary condition Netcdf file.
+%---------------------------------------------------------------------------
+
+if (CREATE),
+
+  [status]=c_boundary(S);
+
+%  Set attributes for "bry_time".
+
+
+%\2026-08-07 by Ligang: We can NOT use time unit of "hours since ..." as ROMS does NOT recognize it 
+% and caused a bug along east and south boundaries that cost us several weeks! Claude Code made several 
+% incorrect attempts but finally it fixed it.
+% We can only use "seconds since ..." or "days since ..."
+% avalue='seconds since 2007-01-01 00:00:00';
+  avalue='hours since 1950-01-01 00:00:00';
+  [status]=nc_attadd(BRYname,'units',avalue,'bry_time');
+  
+  avalue='gregorian';
+  [status]=nc_attadd(BRYname,'calendar',avalue,'bry_time');
+
+%  Set global attribute.
+
+  avalue='Philippine Archipelago Straits, ~5.5 km resolution, Grid b';
+  avalue='Chesapeake bay and Delaware bay';
+  [status]=nc_attadd(BRYname,'title',avalue);
+
+  avalue='Mercator system PSY3V2 daily average, 0.25 degree resolution';
+  avalue='glorys12v1';
+  [status]=nc_attadd(BRYname,'source',avalue);
+
+  [status]=nc_attadd(BRYname,'grd_file',GRDname);
+  
+%  Write out grid data.
+  
+  [status]=nc_write(BRYname, 'spherical',   S.spherical);
+  [status]=nc_write(BRYname, 'Vtransform',  S.Vtransform);
+  [status]=nc_write(BRYname, 'Vstretching', S.Vstretching);
+  [status]=nc_write(BRYname, 'theta_s',     S.theta_s);
+  [status]=nc_write(BRYname, 'theta_b',     S.theta_b);
+  [status]=nc_write(BRYname, 'Tcline',      S.Tcline);
+  [status]=nc_write(BRYname, 'hc',          S.hc);
+  [status]=nc_write(BRYname, 's_rho',       S.s_rho);
+  [status]=nc_write(BRYname, 's_w',         S.s_w);
+  [status]=nc_write(BRYname, 'Cs_r',        S.Cs_r);
+  [status]=nc_write(BRYname, 'Cs_w',        S.Cs_w);
+
+  if (S.boundary(1)),
+    [status]=nc_write(BRYname, 'lon_rho_west' , S.lon_rho_west);
+    [status]=nc_write(BRYname, 'lat_rho_west' , S.lat_rho_west);
+    [status]=nc_write(BRYname, 'lon_u_west'   , S.lon_u_west);
+    [status]=nc_write(BRYname, 'lat_u_west'   , S.lat_u_west);
+    [status]=nc_write(BRYname, 'lon_v_west'   , S.lon_v_west);
+    [status]=nc_write(BRYname, 'lat_v_west'   , S.lat_v_west);
+  end,
+  if (S.boundary(2)),
+    [status]=nc_write(BRYname, 'lon_rho_east' , S.lon_rho_east);
+    [status]=nc_write(BRYname, 'lat_rho_east' , S.lat_rho_east);
+    [status]=nc_write(BRYname, 'lon_u_east'   , S.lon_u_east);
+    [status]=nc_write(BRYname, 'lat_u_east'   , S.lat_u_east);
+    [status]=nc_write(BRYname, 'lon_v_east'   , S.lon_v_east);
+    [status]=nc_write(BRYname, 'lat_v_east'   , S.lat_v_east);
+  end,
+  if (S.boundary(3)),
+    [status]=nc_write(BRYname, 'lon_rho_south', S.lon_rho_south);
+    [status]=nc_write(BRYname, 'lat_rho_south', S.lat_rho_south);
+    [status]=nc_write(BRYname, 'lon_u_south'  , S.lon_u_south);
+    [status]=nc_write(BRYname, 'lat_u_south'  , S.lat_u_south);
+    [status]=nc_write(BRYname, 'lon_v_south'  , S.lon_v_south);
+    [status]=nc_write(BRYname, 'lat_v_south'  , S.lat_v_south);
+  end,
+  if (S.boundary(4)),
+    [status]=nc_write(BRYname, 'lon_rho_north', S.lon_rho_north);
+    [status]=nc_write(BRYname, 'lat_rho_north', S.lat_rho_north);
+    [status]=nc_write(BRYname, 'lon_u_north'  , S.lon_u_north);
+    [status]=nc_write(BRYname, 'lat_u_north'  , S.lat_u_north);
+    [status]=nc_write(BRYname, 'lon_v_north'  , S.lon_v_north);
+    [status]=nc_write(BRYname, 'lat_v_north'  , S.lat_v_north);
+  end,
+
+%  Initialize unlimited dimension record counter.
+
+  BryRec=0;
+
+end,
+
+%%
+%---------------------------------------------------------------------------
+%  Interpolate boundary conditions from Mercator data to application grid.
+%---------------------------------------------------------------------------
+
+disp(' ');
+disp([ 'Interpolating from Mercator to ROMS grid ...']);
+
+fl_glorys = dir(fullfile(Glorys_Dir, 'mercatorglorys12v1_gl12_mean_1994*.nc'));
+disp(fl_glorys);
+nfiles = length(fl_glorys);
+
+for n=1:nfiles, % nfiles,
+
+  disp(['n = ', num2str(n)]);
+%  Uncompress input Mercator files.
+
+%  if (n <= nfiles1),
+%    Dir=RTR_Dir;
+%  else,
+%    Dir=OPR_Dir;
+%  end,
+  
+%  fileT=fullfile(Dir,Tfile(n).name);  lenT=length(fileT)-3;
+%  fileU=fullfile(Dir,Ufile(n).name);  lenU=length(fileU)-3;
+%  fileV=fullfile(Dir,Vfile(n).name);  lenV=length(fileV)-3;
+  
+%  s=unix(['gunzip ',fileT]);
+%  s=unix(['gunzip ',fileU]);
+%  s=unix(['gunzip ',fileV]);
+
+  fn_glorys = fullfile(fl_glorys(n).folder, fl_glorys(n).name);
+  disp(fn_glorys);
+
+%  Read Mercator data has a time coordinate counter (seconds) that
+%  starts on 11-Oct-2006.
+
+%  time=nc_read(fileT(1:lenT),'time_counter');
+%  mydate=datestr(datenum('11-Oct-2006')+time/86400-0.5,0);
+  time=nc_read(fn_glorys,'time');
+  mydate=datestr(datenum('01-Jan-1950')+time/24,0);
+
+  disp(' ');
+  disp([ '*** Processing: ', mydate]);
+  disp(' ');
+  
+%  Get Mercator grid.
+
+  Tlon=nc_read(fn_glorys,'longitude');
+  Tlat=nc_read(fn_glorys,'latitude');
+  Tdepth=nc_read(fn_glorys,'depth');
+
+  Ulon=nc_read(fn_glorys,'longitude');
+  Ulat=nc_read(fn_glorys,'latitude');
+  Udepth=nc_read(fn_glorys,'depth');
+
+  Vlon=nc_read(fn_glorys,'longitude');
+  Vlat=nc_read(fn_glorys,'latitude');
+  Vdepth=nc_read(fn_glorys,'depth');
+
+%  In the western Pacific, the level 50 (z=5727.9 m) of the Mercator data
+%  is all zeros. Our grid needs depth of Zr=-5920 m.  Therefore, the depths
+%  are modified in level 49 (z=5274.7 m) to bound the vertical interpolation.
+
+  Tdepth(49)=6000; Udepth(49)=6000; Vdepth(49)=6000;
+  Tdepth(50)=6100; Udepth(50)=6100; Vdepth(50)=6100;
+
+%  Read in initial conditions fields.
+
+%  Zeta=nc_read(fileT(1:lenT),'sossheig');
+  Zeta=nc_read(fn_glorys,'zos');
+  Temp=nc_read(fn_glorys,'thetao');
+  Salt=nc_read(fn_glorys,'so');
+  Uvel=nc_read(fn_glorys,'uo');
+  Vvel=nc_read(fn_glorys,'vo');
+
+%  Determine Mercator Land/Sea mask.  Since Mercator is a Z-level
+%  model, the mask is 3D.
+
+  Rmask3d=ones(size(Temp));
+  ind=find(Temp == 0);
+  Rmask3d(ind)=0;
+  disp('Rmask3d: ');
+  disp(size(Rmask3d));
+  
+  clear ind
+
+  [Tlon_2d, Tlat_2d] = ndgrid(Tlon, Tlat);
+  [Ulon_2d, Ulat_2d] = ndgrid(Ulon, Ulat);
+  [Vlon_2d, Vlat_2d] = ndgrid(Vlon, Vlat);
+  disp('Tlon_2d: ');
+  disp(size(Tlon_2d));
+
+%  Compress input Mercator files.
+
+%  s=unix(['gzip ',fileT(1:lenT)]);
+%  s=unix(['gzip ',fileU(1:lenU)]);
+%  s=unix(['gzip ',fileV(1:lenV)]);
+
+%  Set boundary conditions time (seconds). The time coordinate for
+%  this ROMS application is "seconds since 2007-01-01 00:00:00".
+%  coefficient here is to account Mecator daily average. So the data
+%  is centered at 12:00:00 hours.
+
+%  MyTime=time/86400-(datenum('1-Jan-2007')-datenum('11-Oct-2006'))-0.5;
+
+  %if (BryRec == 0),
+  %  S.bry_time = 0;       % to bound initilization on 01-Jan-2007 00:00:00
+  %else,
+  %  S.bry_time = MyTime*86400;
+  %end,
+
+  % overwrite the value above to make it the same as glorys12v1, i.e.
+  % hours since 1950-01-01 00:00:00
+  S.bry_time = time
+
+
+
+%  Interpolate free-surface initial conditions.
+  disp('before interpolating zeta ...');
+% zeta=obc_mercator('zeta',S,Zeta,Tlon,Tlat,Rmask3d(:,:,1));
+  zeta=obc_mercator('zeta',S,Zeta,Tlon_2d,Tlat_2d,Rmask3d(:,:,1));
+
+%  Interpolate temperature and salinity.
+
+  temp=obc_mercator('temp',S,Temp,Tlon_2d,Tlat_2d,Rmask3d,Tdepth);
+  salt=obc_mercator('salt',S,Salt,Tlon_2d,Tlat_2d,Rmask3d,Tdepth);
+  Urho=obc_mercator('u'   ,S,Uvel,Ulon_2d,Ulat_2d,Rmask3d,Udepth);
+  Vrho=obc_mercator('v'   ,S,Vvel,Vlon_2d,Vlat_2d,Rmask3d,Vdepth);
+
+%  Process velocity: rotate and/or average to staggered C-grid locations.
+  disp('before roms_vectors ...');
+  [u,v]=roms_vectors(Urho,Vrho,S.angle,S.mask_u,S.mask_v,S.boundary);
+
+%  Compute barotropic velocities by vertically integrating (u,v).
+  disp('before uv_barotropic ...');
+  [ubar,vbar]=uv_barotropic(u,v,S.Hz,S.boundary);
+
+  disp(' ');
+
+%--------------------------------------------------------------------------
+%  Write out boundary conditions.
+%--------------------------------------------------------------------------
+
+  if (WRITE),
+
+    BryRec = BryRec+1;
+
+    [status]=nc_write(BRYname, 'bry_time', S.bry_time, BryRec);
+
+    if (S.boundary(1)),
+      [status]=nc_write(BRYname, 'zeta_west' , zeta.west, BryRec);
+      [status]=nc_write(BRYname, 'ubar_west' , ubar.west, BryRec);
+      [status]=nc_write(BRYname, 'vbar_west' , vbar.west, BryRec);
+      [status]=nc_write(BRYname, 'u_west',     u.west,    BryRec);
+      [status]=nc_write(BRYname, 'v_west',     v.west,    BryRec);
+      [status]=nc_write(BRYname, 'temp_west' , temp.west, BryRec);
+      [status]=nc_write(BRYname, 'salt_west' , salt.west, BryRec);
+    end,
+    if (S.boundary(2)),
+      [status]=nc_write(BRYname, 'zeta_east' , zeta.east, BryRec);
+      [status]=nc_write(BRYname, 'ubar_east' , ubar.east, BryRec);
+      [status]=nc_write(BRYname, 'vbar_east' , vbar.east, BryRec);
+      [status]=nc_write(BRYname, 'u_east',     u.east,    BryRec);
+      [status]=nc_write(BRYname, 'v_east',     v.east,    BryRec);
+      [status]=nc_write(BRYname, 'temp_east' , temp.east, BryRec);
+      [status]=nc_write(BRYname, 'salt_east' , salt.east, BryRec);
+    end,
+    if (S.boundary(3)),
+      [status]=nc_write(BRYname, 'zeta_south', zeta.south, BryRec);
+      [status]=nc_write(BRYname, 'ubar_south', ubar.south, BryRec);
+      [status]=nc_write(BRYname, 'vbar_south', vbar.south, BryRec);
+      [status]=nc_write(BRYname, 'u_south',    u.south,    BryRec);
+      [status]=nc_write(BRYname, 'v_south',    v.south,    BryRec);
+      [status]=nc_write(BRYname, 'temp_south', temp.south, BryRec);
+      [status]=nc_write(BRYname, 'salt_south', salt.south, BryRec);
+    end,
+    if (S.boundary(4)),
+      [status]=nc_write(BRYname, 'zeta_north', zeta.north, BryRec);
+      [status]=nc_write(BRYname, 'ubar_north', ubar.north, BryRec);
+      [status]=nc_write(BRYname, 'vbar_north', vbar.north, BryRec);
+      [status]=nc_write(BRYname, 'u_north',    u.north,    BryRec);
+      [status]=nc_write(BRYname, 'v_north',    v.north,    BryRec);
+      [status]=nc_write(BRYname, 'temp_north', temp.north, BryRec);
+      [status]=nc_write(BRYname, 'salt_north', salt.north, BryRec);
+    end,
+
+  end,
+
+%  Process next boundary record.
+
+end,

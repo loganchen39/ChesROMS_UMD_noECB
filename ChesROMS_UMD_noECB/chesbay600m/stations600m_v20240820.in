@@ -1,0 +1,757 @@
+!  Station Extraction Parameters.
+!
+!git $Id: f3cd98c7 2024-12-27 19:13:42 UTC arango $
+!========================================================= Hernan G. Arango ===
+!  Copyright (c) 2002-2025 The ROMS Group                                     !
+!    Licensed under a MIT/X style license                                     !
+!    See License_ROMS.md                                                      !
+!==============================================================================
+!                                                                             !
+! Input parameters can be entered in ANY order, provided that the parameter   !
+! KEYWORD (usually, upper case) is typed correctly followed by "="  or "=="   !
+! symbols. Any comment lines are allowed and must begin with an exclamation   !
+! mark (!) in column one.  Comments may  appear to the right of a parameter   !
+! specification to improve documentation.  Comments will be ignored  during   !
+! reading.  Blank lines are also allowed and ignored. Continuation lines in   !
+! a parameter specification are allowed and must be preceded by a backslash   !
+! (\).  In some instances, more than one value is required for a parameter.   !
+! If fewer values are provided, the  last value  is assigned for the entire   !
+! parameter array.  The multiplication symbol (*),  without blank spaces in   !
+! between, is allowed for a parameter specification.  For example, in a two   !
+! grids nested application:                                                   !
+!                                                                             !
+!    AKT_BAK == 2*1.0d-6  2*5.0d-6              ! m2/s                        !
+!                                                                             !
+! indicates that the first two entries of array AKT_BAK,  in fortran column-  !
+! major order, will have the same value of "1.0d-6" for grid 1,  whereas the  !
+! next two entries will have the same value of "5.0d-6" for grid 2.           !
+!                                                                             !
+! In multiple levels of nesting and/or multiple connected domains  step-ups,  !
+! "Ngrids" entries are expected for some of these parameters.  In such case,  !
+! the order of the entries for a parameter is extremely important.  It  must  !
+! follow the same order (1:Ngrids) as in the state variable declaration. The  !
+! USER may follow the above guidelines for specifying his/her values.  These  !
+! parameters are marked by "==" plural symbol after the KEYWORD.              !
+!                                                                             !
+!==============================================================================
+!
+! Switch to control the writing of stations data within nested and/or multiple
+! connected grids, [1:Ngrids].
+
+   Lstations == T
+
+! Logical switches (TRUE/FALSE) to activate writing of fields in STATION
+! output file, [Sout(:,ng), ng=1, Ngrids].
+
+!CAREFUL, recall that you use these STA outputs to force the YRE grid!
+Sout(idUvel) == T       ! u                  3D U-velocity
+Sout(idVvel) == T       ! v                  3D V-velocity
+Sout(idu3dE) == F       ! u_eastward         3D U-eastward at RHO-points
+Sout(idv3dN) == F       ! v_northward        3D V-nortward at RHO-points
+Sout(idWvel) == T       ! w                  3D W-velocity
+Sout(idOvel) == F       ! omega              3D omega vertical velocity
+Sout(idUbar) == T       ! ubar               2D U-velocity
+Sout(idVbar) == T       ! vbar               2D V-velocity
+Sout(idu2dE) == F       ! ubar_eastward      2D U-eastward  at RHO-points
+Sout(idv2dN) == F       ! vbar_northward     2D V-northward at RHO-points
+Sout(idFsur) == T       ! zeta               free-surface
+Sout(idBath) == F       ! bath               time-dependent bathymetry
+
+Sout(idTvar) == 22*T    ! temp, salt, ...    all (NT) tracers
+
+Sout(idUsms) == T       ! sustr              surface U-stress
+Sout(idVsms) == T       ! svstr              surface V-stress
+Sout(idUbms) == T       ! bustr              bottom U-stress
+Sout(idVbms) == T       ! bvstr              bottom V-stress
+
+Sout(idUbrs) == T       ! bustrc             bottom U-current stress
+Sout(idVbrs) == T       ! bvstrc             bottom V-current stress
+Sout(idUbws) == T       ! bustrw             bottom U-wave stress
+Sout(idVbws) == T       ! bvstrw             bottom V-wave stress
+Sout(idUbcs) == F       ! bustrcwmax         bottom max wave-current U-stress
+Sout(idVbcs) == F       ! bvstrcwmax         bottom max wave-current V-stress
+
+Sout(idUbot) == F       ! Ubot               bed wave orbital U-velocity
+Sout(idVbot) == F       ! Vbot               bed wave orbital V-velocity
+Sout(idUbur) == F       ! Ur                 bottom U-velocity above bed
+Sout(idVbvr) == F       ! Vr                 bottom V-velocity above bed
+
+Sout(idW2xx) == F       ! Sxx_bar            2D radiation stress, Sxx component
+Sout(idW2xy) == F       ! Sxy_bar            2D radiation stress, Sxy component
+Sout(idW2yy) == F       ! Syy_bar            2D radiation stress, Syy component
+Sout(idU2rs) == F       ! Ubar_Rstress       2D radiation U-stress
+Sout(idV2rs) == F       ! Vbar_Rstress       2D radiation V-stress
+Sout(idU2Sd) == F       ! ubar_stokes        2D U-Stokes velocity
+Sout(idV2Sd) == F       ! vbar_stokes        2D V-Stokes velocity
+
+Sout(idW3xx) == F       ! Sxx                3D radiation stress, Sxx component
+Sout(idW3xy) == F       ! Sxy                3D radiation stress, Sxy component
+Sout(idW3yy) == F       ! Syy                3D radiation stress, Syy component
+Sout(idW3zx) == F       ! Szx                3D radiation stress, Szx component
+Sout(idW3zy) == F       ! Szy                3D radiation stress, Szy component
+Sout(idU3rs) == F       ! u_Rstress          3D U-radiation stress
+Sout(idV3rs) == F       ! v_Rstress          3D V-radiation stress
+Sout(idU3Sd) == F       ! u_stokes           3D U-Stokes velocity
+Sout(idV3Sd) == F       ! v_stokes           3D V-Stokes velocity
+
+Sout(idWamp) == F       ! Hwave              wave height
+Sout(idWlen) == F       ! Lwave              wave length
+Sout(idWdir) == F       ! Dwave              wave direction
+Sout(idWptp) == F       ! Pwave_top          wave surface period
+Sout(idWpbt) == F       ! Pwave_bot          wave bottom period
+Sout(idWorb) == F       ! Ub_swan            wave bottom orbital velocity
+Sout(idWdis) == F       ! Wave_dissip        wave dissipation
+
+Sout(idPair) == F       ! Pair               surface air pressure
+Sout(idUair) == F       ! Uair               surface U-wind component
+Sout(idVair) == F       ! Vair               surface V-wind component
+
+Sout(idTsur) == T T     ! shflux, ssflux     surface net heat and salt flux
+Sout(idLhea) == T       ! latent             latent heat flux
+Sout(idShea) == T       ! sensible           sensible heat flux
+Sout(idLrad) == T       ! lwrad              longwave radiation flux
+Sout(idSrad) == T       ! swrad              shortwave radiation flux
+Sout(idEmPf) == T       ! EminusP            E-P flux
+Sout(idevap) == T       ! evaporation        evaporation rate
+Sout(idrain) == T       ! rain               precipitation rate
+
+Sout(idDano) == F       ! rho                density anomaly
+Sout(idVvis) == F       ! AKv                vertical viscosity
+Sout(idTdif) == T       ! AKt                vertical T-diffusion
+Sout(idSdif) == F       ! AKs                vertical Salinity diffusion
+Sout(idHsbl) == T       ! Hsbl               depth of surface boundary layer
+Sout(idHbbl) == T       ! Hbbl               depth of bottom boundary layer
+Sout(idMtke) == F       ! tke                turbulent kinetic energy
+Sout(idMtls) == F       ! gls                turbulent length scale
+
+! Logical switches (TRUE/FALSE) to activate writing of exposed sediment
+! layer properties into STATIONS output file.
+
+Sout(isd50)  == F       ! grain_diameter     mean grain diameter
+Sout(idens)  == F       ! grain_density      mean grain density
+Sout(iwsed)  == F       ! settling_vel       mean settling velocity
+Sout(itauc)  == F       ! erosion_stress     critical erosion stress
+Sout(irlen)  == F       ! ripple_length      ripple length
+Sout(irhgt)  == F       ! ripple_height      ripple height
+Sout(ibwav)  == F       ! bed_wave_amp       wave excursion amplitude
+Sout(izdef)  == F       ! Zo_def             default bottom roughness
+Sout(izapp)  == F       ! Zo_app             apparent bottom roughness
+Sout(izNik)  == F       ! Zo_Nik             Nikuradse bottom roughness
+Sout(izbio)  == F       ! Zo_bio             biological bottom roughness
+Sout(izbfm)  == F       ! Zo_bedform         bed form bottom roughness
+Sout(izbld)  == F       ! Zo_bedload         bed load bottom roughness
+Sout(izwbl)  == F       ! Zo_wbl             wave bottom roughness
+Sout(iactv)  == F       ! active_layer_t...  active layer thickness
+Sout(ishgt)  == F       ! saltation          saltation height
+
+! Number of stations to process in each nested grid.  These values are
+! essential because the station arrays are dynamically allocated using
+! these values, [1:Ngrids].
+
+    NSTATION ==  429 ! psl20240820
+!   NSTATION ==  415 ! psl20240507
+!   NSTATION ==  409 ! psl20240315
+!   NSTATION ==  404 ! psl20230927
+
+! Station locations for all grids in any desired order.  The horizontal
+! location for a particular station may be specified in terms of fractional
+! (I,J) grid pairs (FLAG=0) or (longitude,latitude) grid pairs (FLAG=1).
+! Here, FLAG is a special switch and may be used for multiple purposes.
+! The GRID column indicates nested grid number to process. This value must
+! be one in non-nested applications.  The COMMENT section is ignored during
+! reading and may be used to help documentation.
+
+POS =  GRID  FLAG      X-POS       Y-POS     COMMENT
+
+1 1 -76.038300 38.220000 !   1 Bishops Head MD (NOAA 8571421, XCH3277)
+1 1 -76.061700 38.571700 !   2 Cambridge MD (NOAA 8571892)
+1 1 -76.528300 39.216667 !   3 Francis Scott Key Bridge (NOAA 8574730, WT5.1)
+1 1 -76.481667 38.983333 !   4 Annapolis (NOAA 8575512)
+1 1 -76.386700 38.431700 !   5 Cove Point
+1 1 -76.451700 38.316700 !   6 Solomons Island MD (NOAA 8577330, XCF9029)
+1 1 -76.533300 38.133300 !   7 Piney Point
+1 1 -75.988300 37.165000 !   8 Kiptopeke VA (NOAA 8632200)
+1 1 -76.015000 37.538300 !   9 Rappahannock Light VA (NOAA 8632837)
+1 1 -76.465000 37.995000 !  10 Lewisetta VA (NOAA 8635750, COA000.63)
+1 1 -76.300000 37.250000 !  11 York River East Rear Range Light VA (NOAA 8637611)
+1 1 -76.478300 37.226700 !  12 Yorktown USCG Training Center VA (NOAA 8637689)
+1 1 -76.338300 36.900000 !  13 South Craney Island VA (NOAA 8638595, ELI2)
+1 1 -76.330000 36.946700 !  14 Sewells Point VA (NOAA 8638610)
+1 1 -76.083300 37.033300 !  15 Chesapeake Bay Bridge Tunnel VA (CBBT, NOAA 8638901)
+1 1 -75.696700 36.905000 !  16 Chesapeake Light
+1 1 -76.006700 36.930000 !  17 Cape Henry VA (NOAA 8638999)
+1 1 -75.730000 36.191800 !  18 Duck NC (NOAA 8651370)
+1 1 -75.685000 37.608300 !  19 Wachapreague VA (NOAA 8631044)
+1 1 -76.245000 39.213333 !  20 Tolchester Beach (NOAA 8573364, XIG2853)
+1 1 -76.578333 39.270000 !  21 Baltimore (NOAA 8574680, XIE5748)
+1 1 -76.380000 38.473330 !  22 MB
+1 1 -76.113330 39.375000 !  23 NB
+1 1 -76.159270 38.634980 !  24 CHOP
+1 1 -76.526500 38.388670 !  25 PAX
+1 1 -76.084810 39.547940 !  26 CB1.1
+1 1 -76.025990 39.441490 !  27 CB2.1
+1 1 -76.175790 39.348730 !  28 CB2.2
+1 1 -76.240500 39.249500 !  29 CB3.1
+1 1 -76.306340 39.163450 !  30 CB3.2
+1 1 -76.359680 38.995110 !  31 CB3.3C
+1 1 -76.345170 39.004120 !  32 CB3.3E
+1 1 -76.388100 39.004620 !  33 CB3.3W
+1 1 -76.394400 38.927060 !  34 CB4.0C
+1 1 -76.386900 38.927060 !  35 CB4.0E
+1 1 -76.432730 38.927330 !  36 CB4.0W
+1 1 -76.399670 38.825110 !  37 CB4.1C
+1 1 -76.371440 38.818090 !  38 CB4.1E
+1 1 -76.462720 38.814980 !  39 CB4.1W
+1 1 -76.421270 38.646180 !  40 CB4.2C
+1 1 -76.401310 38.644980 !  41 CB4.2E
+1 1 -76.501340 38.643450 !  42 CB4.2W
+1 1 -76.427940 38.555050 !  43 CB4.3C
+1 1 -76.389670 38.556510 !  44 CB4.3E
+1 1 -76.493010 38.556510 !  45 CB4.3W
+1 1 -76.345650 38.414570 !  46 CB4.4
+1 1 -76.293000 38.318460 !  47 CB5.1
+1 1 -76.375500 38.325120 !  48 CB5.1W
+1 1 -76.228000 38.136790 !  49 CB5.2
+1 1 -76.171370 37.910110 !  50 CB5.3
+1 1 -76.174660 37.800130 !  51 CB5.4
+1 1 -76.294670 37.813470 !  52 CB5.4W
+1 1 -76.189670 37.691800 !  53 CB5.5
+1 1 -76.162160 37.588470 !  54 CB6.1
+1 1 -76.156330 37.486800 !  55 CB6.2
+1 1 -76.159660 37.411530 !  56 CB6.3
+1 1 -76.207990 37.236530 !  57 CB6.4
+1 1 -75.989660 37.683460 !  58 CB7.1
+1 1 -75.974660 37.775130 !  59 CB7.1N
+1 1 -76.057990 37.581240 !  60 CB7.1S
+1 1 -76.079660 37.411530 !  61 CB7.2
+1 1 -76.024660 37.411530 !  62 CB7.2E
+1 1 -76.125210 37.116810 !  63 CB7.3
+1 1 -76.053830 37.228750 !  64 CB7.3E
+1 1 -76.020480 36.995700 !  65 CB7.4
+1 1 -75.999370 37.062370 !  66 CB7.4N
+1 1 -76.167720 36.995420 !  67 CB8.1
+1 1 -76.034940 36.947370 !  68 CB8.1E
+1 1 -76.251500 38.880000 !  69 EE1.1
+1 1 -76.264300 38.654900 !  70 EE2.1
+1 1 -76.304080 38.526090 !  71 EE2.2
+1 1 -76.010330 38.280930 !  72 EE3.0
+1 1 -75.973210 38.196850 !  73 EE3.1
+1 1 -75.924670 37.980100 !  74 EE3.2
+1 1 -75.801480 37.914550 !  75 EE3.3
+1 1 -75.791320 37.908460 !  76 EE3.4
+1 1 -75.844380 37.796520 !  77 EE3.5
+1 1 -75.967820 39.569760 !  78 ET1.1
+1 1 -75.897830 39.508730 !  79 ET2.3
+1 1 -76.216340 38.991780 !  80 ET4.2
+1 1 -76.058000 38.580120 !  81 ET5.2
+1 1 -75.888340 38.341330 !  82 ET6.2
+1 1 -76.601620 38.425130 !  83 LE1.1
+1 1 -76.511060 38.378730 !  84 LE1.2
+1 1 -76.484900 38.339800 !  85 LE1.3
+1 1 -76.421340 38.312070 !  86 LE1.4
+1 1 -76.598000 38.157600 !  87 LE2.2
+1 1 -76.347720 38.021520 !  88 LE2.3
+1 1 -76.615920 37.759250 !  89 LE3.1 (RPP025.52)
+1 1 -76.550470 37.669140 !  90 LE3.2
+1 1 -76.474420 37.688420 !  91 LE3.3 (CRR003.38)
+1 1 -76.444860 37.631890 !  92 LE3.4 (RPP010.60)
+1 1 -76.284670 37.596800 !  93 LE3.6
+1 1 -76.283000 37.606800 !  94 LE3.6N
+1 1 -76.293000 37.572630 !  95 LE3.6S
+1 1 -76.306610 37.530690 !  96 LE3.7
+1 1 -76.691250 37.418830 !  97 LE4.1
+1 1 -76.578110 37.290440 !  98 LE4.2
+1 1 -76.430940 37.233920 !  99 LE4.3
+1 1 -76.648330 37.202970 ! 100 LE5.1 (JMS032.59)
+1 1 -76.593060 37.056000 ! 101 LE5.2
+1 1 -76.475440 36.990440 ! 102 LE5.3
+1 1 -76.392750 36.954860 ! 103 LE5.4
+1 1 -76.303000 36.996810 ! 104 LE5.5
+1 1 -76.290500 36.981800 ! 105 LE5.5A
+1 1 -76.289660 36.974580 ! 106 LE5.5B
+1 1 -76.313280 36.999030 ! 107 LE5.5-W
+1 1 -76.338360 36.904560 ! 108 LE5.6
+1 1 -76.664130 38.490680 ! 109 RET1.1
+1 1 -76.990530 38.362630 ! 110 RET2.4
+1 1 -76.822200 37.917300 ! 111 RET3.1 (RPP042.12)
+1 1 -76.711950 37.811580 ! 112 RET3.2
+1 1 -76.797150 37.571250 ! 113 RET4.2
+1 1 -76.788890 37.508690 ! 114 RET4.3
+1 1 -76.782190 37.202940 ! 115 RET5.2 (JMS042.92,CBIBS_JAM)
+1 1 -76.680240 38.581790 ! 116 TF1.7
+1 1 -77.048590 38.706500 ! 117 TF2.1
+1 1 -76.909280 38.018470 ! 118 TF3.3 (RPP051.01)
+1 1 -76.923290 37.221820 ! 119 TF5.6A
+1 1 -76.346340 37.311810 ! 120 WE4.1 (MJB003.07)
+1 1 -76.386340 37.241810 ! 121 WE4.2 (YRK000.79)
+1 1 -76.390500 37.251810 ! 122 WE4.2N
+1 1 -76.386340 37.236810 ! 123 WE4.2S
+1 1 -76.373000 37.176810 ! 124 WE4.3
+1 1 -76.293000 37.110150 ! 125 WE4.4 (BAK000.09)
+1 1 -76.334650 39.377470 ! 126 WT2.1
+1 1 -76.522540 39.213090 ! 127 WT5.1 (Francis Scott Key Bridge)
+1 1 -76.510050 39.078510 ! 128 WT6.1
+1 1 -76.073600 39.5404   ! 129 CBIBS_SUS (Susquehanna,   XKH2555)
+1 1 -76.391150 39.15191  ! 130 CBIBS_PAT (Patapsco,      XHF9165)
+1 1 -76.446768 38.963602 ! 131 CBIBS_ANA (Annapolis,     XGF7832)
+1 1 -77.035700 38.7877   ! 132 CBIBS_UPT (Upper Potomac, XFB7379)
+1 1 -76.414700 38.5563   ! 133 CBIBS_GOR (Gooses Reef,   XEF3551)
+1 1 -76.335500 38.033    ! 134 CBIBS_POT (Potomac,       XBF2099)
+1 1 -76.257400 37.5672   ! 135 CBIBS_STR (Stingray Point)
+1 1 -76.786770 37.21137  ! 136 CBIBS_JAM (Jamestown VA, RET5.2, JMS042.92)
+1 1 -76.297501 36.870227 ! 137 CBIBS_NOR_Moved_In_Grid
+1 1 -76.087300 36.9981   ! 138 CBIBS_FSL (First Landing)
+1 1 -77.114333 37.305068 ! 139 CBIBS_VCU
+1 1 -76.395240 38.56424  ! 140 CBIBS_GOR2_WaterDepthMatch
+1 1 -75.652394 37.937965 ! 141 VECOS_Tall_Pines (PKS008.81)
+1 1 -76.265980 37.20063  ! 142 CBIBS_YST (York Spit)
+1 1 -76.499369 37.247284 ! 143 VECOS_GloucesterPoint (YRK005.40)
+1 1 -76.417190 37.210280 ! 144 Southern_boundary_of_YRE_model_001
+1 1 -76.410430 37.210280 ! 145 Southern_boundary_of_YRE_model_002
+1 1 -76.403670 37.210280 ! 146 Southern_boundary_of_YRE_model_003
+1 1 -76.396910 37.210270 ! 147 Southern_boundary_of_YRE_model_004
+1 1 -76.390150 37.210270 ! 148 Southern_boundary_of_YRE_model_005
+1 1 -76.383390 37.210270 ! 149 Southern_boundary_of_YRE_model_006
+1 1 -76.376630 37.210260 ! 150 Southern_boundary_of_YRE_model_007
+1 1 -76.369870 37.210260 ! 151 Southern_boundary_of_YRE_model_008
+1 1 -76.363120 37.210250 ! 152 Southern_boundary_of_YRE_model_009
+1 1 -76.356360 37.210250 ! 153 Southern_boundary_of_YRE_model_010
+1 1 -76.349600 37.210240 ! 154 Southern_boundary_of_YRE_model_011
+1 1 -76.342840 37.210230 ! 155 Southern_boundary_of_YRE_model_012
+1 1 -76.336080 37.210230 ! 156 Southern_boundary_of_YRE_model_013
+1 1 -76.329320 37.210220 ! 157 Southern_boundary_of_YRE_model_014
+1 1 -76.322560 37.210210 ! 158 Southern_boundary_of_YRE_model_015
+1 1 -76.315800 37.210200 ! 159 Southern_boundary_of_YRE_model_016
+1 1 -76.309040 37.210190 ! 160 Southern_boundary_of_YRE_model_017
+1 1 -76.302280 37.210190 ! 161 Southern_boundary_of_YRE_model_018
+1 1 -76.295520 37.210180 ! 162 Southern_boundary_of_YRE_model_019
+1 1 -76.288760 37.210170 ! 163 Southern_boundary_of_YRE_model_020
+1 1 -76.282000 37.210160 ! 164 Southern_boundary_of_YRE_model_021
+1 1 -76.275240 37.210150 ! 165 Southern_boundary_of_YRE_model_022
+1 1 -76.268480 37.210140 ! 166 Southern_boundary_of_YRE_model_023
+1 1 -76.261720 37.210130 ! 167 Southern_boundary_of_YRE_model_024
+1 1 -76.254970 37.210110 ! 168 Southern_boundary_of_YRE_model_025
+1 1 -76.248210 37.210100 ! 169 Southern_boundary_of_YRE_model_026
+1 1 -76.241450 37.210090 ! 170 Southern_boundary_of_YRE_model_027
+1 1 -76.234690 37.210080 ! 171 Southern_boundary_of_YRE_model_028
+1 1 -76.227930 37.210060 ! 172 Southern_boundary_of_YRE_model_029
+1 1 -76.227930 37.210060 ! 173 Eastern_boundary_of_YRE_model_001
+1 1 -76.227910 37.215470 ! 174 Eastern_boundary_of_YRE_model_002
+1 1 -76.227890 37.220880 ! 175 Eastern_boundary_of_YRE_model_003
+1 1 -76.227880 37.226280 ! 176 Eastern_boundary_of_YRE_model_004
+1 1 -76.227860 37.231690 ! 177 Eastern_boundary_of_YRE_model_005
+1 1 -76.227840 37.237100 ! 178 Eastern_boundary_of_YRE_model_006
+1 1 -76.227830 37.242500 ! 179 Eastern_boundary_of_YRE_model_007
+1 1 -76.227810 37.247910 ! 180 Eastern_boundary_of_YRE_model_008
+1 1 -76.227790 37.253310 ! 181 Eastern_boundary_of_YRE_model_009
+1 1 -76.227780 37.258720 ! 182 Eastern_boundary_of_YRE_model_010
+1 1 -76.227760 37.264130 ! 183 Eastern_boundary_of_YRE_model_011
+1 1 -76.227750 37.269530 ! 184 Eastern_boundary_of_YRE_model_012
+1 1 -76.227730 37.274940 ! 185 Eastern_boundary_of_YRE_model_013
+1 1 -76.227710 37.280350 ! 186 Eastern_boundary_of_YRE_model_014
+1 1 -76.227700 37.285750 ! 187 Eastern_boundary_of_YRE_model_015
+1 1 -76.227680 37.291160 ! 188 Eastern_boundary_of_YRE_model_016
+1 1 -76.227660 37.296560 ! 189 Eastern_boundary_of_YRE_model_017
+1 1 -76.227650 37.301970 ! 190 Eastern_boundary_of_YRE_model_018
+1 1 -76.227630 37.307380 ! 191 Eastern_boundary_of_YRE_model_019
+1 1 -76.227610 37.312780 ! 192 Eastern_boundary_of_YRE_model_020
+1 1 -76.227600 37.318190 ! 193 Eastern_boundary_of_YRE_model_021
+1 1 -76.227580 37.323600 ! 194 Eastern_boundary_of_YRE_model_022
+1 1 -76.227560 37.329000 ! 195 Eastern_boundary_of_YRE_model_023
+1 1 -76.227550 37.334410 ! 196 Eastern_boundary_of_YRE_model_024
+1 1 -76.227530 37.339810 ! 197 Eastern_boundary_of_YRE_model_025
+1 1 -76.227510 37.345220 ! 198 Eastern_boundary_of_YRE_model_026
+1 1 -76.227500 37.350630 ! 199 Eastern_boundary_of_YRE_model_027
+1 1 -76.227480 37.356030 ! 200 Eastern_boundary_of_YRE_model_028
+1 1 -76.227460 37.361440 ! 201 Eastern_boundary_of_YRE_model_029
+1 1 -76.227450 37.366840 ! 202 Eastern_boundary_of_YRE_model_030
+1 1 -76.227430 37.372250 ! 203 Eastern_boundary_of_YRE_model_031
+1 1 -76.227410 37.377660 ! 204 Eastern_boundary_of_YRE_model_032
+1 1 -76.227400 37.383060 ! 205 Eastern_boundary_of_YRE_model_033
+1 1 -76.227380 37.388470 ! 206 Eastern_boundary_of_YRE_model_034
+1 1 -76.227360 37.393880 ! 207 Eastern_boundary_of_YRE_model_035
+1 1 -76.227350 37.399280 ! 208 Eastern_boundary_of_YRE_model_036
+1 1 -76.227330 37.404690 ! 209 Eastern_boundary_of_YRE_model_037
+1 1 -76.227310 37.410090 ! 210 Eastern_boundary_of_YRE_model_038
+1 1 -76.227290 37.415500 ! 211 Eastern_boundary_of_YRE_model_039
+1 1 -76.227280 37.420910 ! 212 Eastern_boundary_of_YRE_model_040
+1 1 -76.227260 37.426310 ! 213 Eastern_boundary_of_YRE_model_041
+1 1 -76.227240 37.431720 ! 214 Eastern_boundary_of_YRE_model_042
+1 1 -76.227230 37.437120 ! 215 Eastern_boundary_of_YRE_model_043
+1 1 -76.227210 37.442530 ! 216 Eastern_boundary_of_YRE_model_044
+1 1 -76.227190 37.447940 ! 217 Eastern_boundary_of_YRE_model_045
+1 1 -76.227180 37.453340 ! 218 Eastern_boundary_of_YRE_model_046
+1 1 -76.227160 37.458750 ! 219 Eastern_boundary_of_YRE_model_047
+1 1 -76.227140 37.464160 ! 220 Eastern_boundary_of_YRE_model_048
+1 1 -76.227130 37.469560 ! 221 Eastern_boundary_of_YRE_model_049
+1 1 -76.227110 37.474970 ! 222 Eastern_boundary_of_YRE_model_050
+1 1 -76.227090 37.480370 ! 223 Eastern_boundary_of_YRE_model_051
+1 1 -76.227080 37.485780 ! 224 Eastern_boundary_of_YRE_model_052
+1 1 -76.227060 37.491190 ! 225 Eastern_boundary_of_YRE_model_053
+1 1 -76.227040 37.496590 ! 226 Eastern_boundary_of_YRE_model_054
+1 1 -76.227030 37.502000 ! 227 Eastern_boundary_of_YRE_model_055
+1 1 -76.227010 37.507400 ! 228 Eastern_boundary_of_YRE_model_056
+1 1 -76.226990 37.512810 ! 229 Eastern_boundary_of_YRE_model_057
+1 1 -76.226980 37.518220 ! 230 Eastern_boundary_of_YRE_model_058
+1 1 -76.226960 37.523620 ! 231 Eastern_boundary_of_YRE_model_059
+1 1 -76.226940 37.529030 ! 232 Eastern_boundary_of_YRE_model_060
+1 1 -76.226930 37.534430 ! 233 Eastern_boundary_of_YRE_model_061
+1 1 -76.226910 37.539840 ! 234 Eastern_boundary_of_YRE_model_062
+1 1 -76.226890 37.545250 ! 235 Eastern_boundary_of_YRE_model_063
+1 1 -76.226880 37.550650 ! 236 Eastern_boundary_of_YRE_model_064
+1 1 -76.226860 37.556060 ! 237 Eastern_boundary_of_YRE_model_065
+1 1 -76.226840 37.561460 ! 238 Eastern_boundary_of_YRE_model_066
+1 1 -76.226830 37.566870 ! 239 Eastern_boundary_of_YRE_model_067
+1 1 -76.226810 37.572280 ! 240 Eastern_boundary_of_YRE_model_068
+1 1 -76.226790 37.577680 ! 241 Eastern_boundary_of_YRE_model_069
+1 1 -76.226770 37.583090 ! 242 Eastern_boundary_of_YRE_model_070
+1 1 -76.226760 37.588490 ! 243 Eastern_boundary_of_YRE_model_071
+1 1 -76.226740 37.593900 ! 244 Eastern_boundary_of_YRE_model_072
+1 1 -76.226720 37.599310 ! 245 Eastern_boundary_of_YRE_model_073
+1 1 -76.226710 37.604710 ! 246 Eastern_boundary_of_YRE_model_074
+1 1 -76.226690 37.610120 ! 247 Eastern_boundary_of_YRE_model_075
+1 1 -76.226670 37.615520 ! 248 Eastern_boundary_of_YRE_model_076
+1 1 -76.226660 37.620930 ! 249 Eastern_boundary_of_YRE_model_077
+1 1 -76.226640 37.626340 ! 250 Eastern_boundary_of_YRE_model_078
+1 1 -76.226620 37.631740 ! 251 Eastern_boundary_of_YRE_model_079
+1 1 -76.226610 37.637150 ! 252 Eastern_boundary_of_YRE_model_080
+1 1 -76.226590 37.642550 ! 253 Eastern_boundary_of_YRE_model_081
+1 1 -76.226570 37.647960 ! 254 Eastern_boundary_of_YRE_model_082
+1 1 -76.226560 37.653370 ! 255 Eastern_boundary_of_YRE_model_083
+1 1 -76.226540 37.658770 ! 256 Eastern_boundary_of_YRE_model_084
+1 1 -76.226520 37.664180 ! 257 Eastern_boundary_of_YRE_model_085
+1 1 -76.226510 37.669580 ! 258 Eastern_boundary_of_YRE_model_086
+1 1 -76.226490 37.674990 ! 259 Eastern_boundary_of_YRE_model_087
+1 1 -76.226470 37.680390 ! 260 Eastern_boundary_of_YRE_model_088
+1 1 -76.226450 37.685800 ! 261 Eastern_boundary_of_YRE_model_089
+1 1 -76.226440 37.691210 ! 262 Eastern_boundary_of_YRE_model_090
+1 1 -76.226420 37.696610 ! 263 Eastern_boundary_of_YRE_model_091
+1 1 -76.226400 37.702020 ! 264 Eastern_boundary_of_YRE_model_092
+1 1 -76.226390 37.707420 ! 265 Eastern_boundary_of_YRE_model_093
+1 1 -76.226370 37.712830 ! 266 Eastern_boundary_of_YRE_model_094
+1 1 -76.226350 37.718240 ! 267 Eastern_boundary_of_YRE_model_095
+1 1 -76.226340 37.723640 ! 268 Eastern_boundary_of_YRE_model_096
+1 1 -76.226320 37.729050 ! 269 Eastern_boundary_of_YRE_model_097
+1 1 -76.226300 37.734450 ! 270 Eastern_boundary_of_YRE_model_098
+1 1 -76.226290 37.739860 ! 271 Eastern_boundary_of_YRE_model_099
+1 1 -76.226270 37.745260 ! 272 Eastern_boundary_of_YRE_model_100
+1 1 -76.226250 37.750670 ! 273 Eastern_boundary_of_YRE_model_101
+1 1 -76.226230 37.756080 ! 274 Eastern_boundary_of_YRE_model_102
+1 1 -76.226220 37.761480 ! 275 Eastern_boundary_of_YRE_model_103
+1 1 -76.226200 37.766890 ! 276 Eastern_boundary_of_YRE_model_104
+1 1 -76.226180 37.772290 ! 277 Eastern_boundary_of_YRE_model_105
+1 1 -76.226170 37.777700 ! 278 Eastern_boundary_of_YRE_model_106
+1 1 -76.226150 37.783100 ! 279 Eastern_boundary_of_YRE_model_107
+1 1 -76.226130 37.788510 ! 280 Eastern_boundary_of_YRE_model_108
+1 1 -76.226120 37.793920 ! 281 Eastern_boundary_of_YRE_model_109
+1 1 -76.226100 37.799320 ! 282 Eastern_boundary_of_YRE_model_110
+1 1 -76.226080 37.804730 ! 283 Eastern_boundary_of_YRE_model_111
+1 1 -76.226070 37.810130 ! 284 Eastern_boundary_of_YRE_model_112
+1 1 -76.226050 37.815540 ! 285 Eastern_boundary_of_YRE_model_113
+1 1 -76.226030 37.820940 ! 286 Eastern_boundary_of_YRE_model_114
+1 1 -76.226010 37.826350 ! 287 Eastern_boundary_of_YRE_model_115
+1 1 -76.226000 37.831760 ! 288 Eastern_boundary_of_YRE_model_116
+1 1 -76.225980 37.837160 ! 289 Eastern_boundary_of_YRE_model_117
+1 1 -76.225960 37.842570 ! 290 Eastern_boundary_of_YRE_model_118
+1 1 -76.225950 37.847970 ! 291 Eastern_boundary_of_YRE_model_119
+1 1 -76.225930 37.853380 ! 292 Eastern_boundary_of_YRE_model_120
+1 1 -76.225910 37.858780 ! 293 Eastern_boundary_of_YRE_model_121
+1 1 -76.225900 37.864190 ! 294 Eastern_boundary_of_YRE_model_122
+1 1 -76.225880 37.869600 ! 295 Eastern_boundary_of_YRE_model_123
+1 1 -76.225860 37.875000 ! 296 Eastern_boundary_of_YRE_model_124
+1 1 -76.225840 37.880410 ! 297 Eastern_boundary_of_YRE_model_125
+1 1 -76.225830 37.885810 ! 298 Eastern_boundary_of_YRE_model_126
+1 1 -76.225810 37.891220 ! 299 Eastern_boundary_of_YRE_model_127
+1 1 -76.225790 37.896620 ! 300 Eastern_boundary_of_YRE_model_128
+1 1 -76.225780 37.902030 ! 301 Eastern_boundary_of_YRE_model_129
+1 1 -76.225760 37.907430 ! 302 Eastern_boundary_of_YRE_model_130
+1 1 -76.225740 37.912840 ! 303 Eastern_boundary_of_YRE_model_131
+1 1 -76.225730 37.918250 ! 304 Eastern_boundary_of_YRE_model_132
+1 1 -76.225710 37.923650 ! 305 Eastern_boundary_of_YRE_model_133
+1 1 -76.225690 37.929060 ! 306 Eastern_boundary_of_YRE_model_134
+1 1 -76.225670 37.934460 ! 307 Eastern_boundary_of_YRE_model_135
+1 1 -76.225660 37.939870 ! 308 Eastern_boundary_of_YRE_model_136
+1 1 -76.225640 37.945270 ! 309 Eastern_boundary_of_YRE_model_137
+1 1 -76.225620 37.950680 ! 310 Eastern_boundary_of_YRE_model_138
+1 1 -76.225610 37.956080 ! 311 Eastern_boundary_of_YRE_model_139
+1 1 -76.225590 37.961490 ! 312 Eastern_boundary_of_YRE_model_140
+1 1 -76.225570 37.966900 ! 313 Eastern_boundary_of_YRE_model_141
+1 1 -76.225550 37.972300 ! 314 Eastern_boundary_of_YRE_model_142
+1 1 -76.225540 37.977710 ! 315 Eastern_boundary_of_YRE_model_143
+1 1 -76.225520 37.983110 ! 316 Eastern_boundary_of_YRE_model_144
+1 1 -76.225500 37.988520 ! 317 Eastern_boundary_of_YRE_model_145
+1 1 -76.225490 37.993920 ! 318 Eastern_boundary_of_YRE_model_146
+1 1 -76.225470 37.999330 ! 319 Eastern_boundary_of_YRE_model_147
+1 1 -76.225450 38.004730 ! 320 Eastern_boundary_of_YRE_model_148
+1 1 -76.464550 38.004970 ! 321 Northern_boundary_of_YRE_model_001
+1 1 -76.457720 38.004970 ! 322 Northern_boundary_of_YRE_model_002
+1 1 -76.450890 38.004970 ! 323 Northern_boundary_of_YRE_model_003
+1 1 -76.444060 38.004970 ! 324 Northern_boundary_of_YRE_model_004
+1 1 -76.437230 38.004960 ! 325 Northern_boundary_of_YRE_model_005
+1 1 -76.430400 38.004960 ! 326 Northern_boundary_of_YRE_model_006
+1 1 -76.423570 38.004960 ! 327 Northern_boundary_of_YRE_model_007
+1 1 -76.416730 38.004960 ! 328 Northern_boundary_of_YRE_model_008
+1 1 -76.409900 38.004960 ! 329 Northern_boundary_of_YRE_model_009
+1 1 -76.403070 38.004950 ! 330 Northern_boundary_of_YRE_model_010
+1 1 -76.396240 38.004950 ! 331 Northern_boundary_of_YRE_model_011
+1 1 -76.389410 38.004950 ! 332 Northern_boundary_of_YRE_model_012
+1 1 -76.382580 38.004940 ! 333 Northern_boundary_of_YRE_model_013
+1 1 -76.375740 38.004940 ! 334 Northern_boundary_of_YRE_model_014
+1 1 -76.368910 38.004930 ! 335 Northern_boundary_of_YRE_model_015
+1 1 -76.362080 38.004930 ! 336 Northern_boundary_of_YRE_model_016
+1 1 -76.355250 38.004920 ! 337 Northern_boundary_of_YRE_model_017
+1 1 -76.348420 38.004910 ! 338 Northern_boundary_of_YRE_model_018
+1 1 -76.341590 38.004910 ! 339 Northern_boundary_of_YRE_model_019
+1 1 -76.334760 38.004900 ! 340 Northern_boundary_of_YRE_model_020
+1 1 -76.327920 38.004890 ! 341 Northern_boundary_of_YRE_model_021
+1 1 -76.321090 38.004880 ! 342 Northern_boundary_of_YRE_model_022
+1 1 -76.314260 38.004880 ! 343 Northern_boundary_of_YRE_model_023
+1 1 -76.307430 38.004870 ! 344 Northern_boundary_of_YRE_model_024
+1 1 -76.300600 38.004860 ! 345 Northern_boundary_of_YRE_model_025
+1 1 -76.293770 38.004850 ! 346 Northern_boundary_of_YRE_model_026
+1 1 -76.286940 38.004840 ! 347 Northern_boundary_of_YRE_model_027
+1 1 -76.280100 38.004830 ! 348 Northern_boundary_of_YRE_model_028
+1 1 -76.273270 38.004820 ! 349 Northern_boundary_of_YRE_model_029
+1 1 -76.266440 38.004810 ! 350 Northern_boundary_of_YRE_model_030
+1 1 -76.259610 38.004800 ! 351 Northern_boundary_of_YRE_model_031
+1 1 -76.252780 38.004780 ! 352 Northern_boundary_of_YRE_model_032
+1 1 -76.245950 38.004770 ! 353 Northern_boundary_of_YRE_model_033
+1 1 -76.239110 38.004760 ! 354 Northern_boundary_of_YRE_model_034
+1 1 -76.232280 38.004750 ! 355 Northern_boundary_of_YRE_model_035
+1 1 -76.225450 38.004730 ! 356 Northern_boundary_of_YRE_model_036
+1 1 -76.332670 37.506050 ! 357 Burton Point VA      (CONMON, Piankatank, PNK002.52)
+1 1 -76.487970 37.533970 ! 358 Blands Wharf VA      (CONMON, Piankatank, PNK013.91)
+1 1 -76.714410 37.414970 ! 359 Taskinas Creek VA    (CONMON, York,   op, TSK000.23)
+1 1 -76.611230 37.348550 ! 360 Claybank VA          (CONMON, York,   op, YRK015.09)
+1 1 -76.524660 37.244240 ! 361 Yorktown VA          (CONMON, York,   op, YRK006.77)
+1 1 -76.392220 37.217220 ! 362 Goodwin Islands VA   (CONMON, York,   op, CHE019.38)
+1 1 -76.463700 37.979900 ! 363 KCB Oyster Holdings  (hatchery)
+1 1 -76.303200 37.493700 ! 364 Oyster Seed Holdings (hatchery)
+1 1 -76.434100 37.594100 ! 365 Merroir              (Buoy, SeapHOx sensor)
+1 1 -76.474400 37.538300 ! 366 Piankatank River VA  (Citizen)
+1 1 -76.570600 37.638300 ! 367 Urbanna Creek        (Citizen, LE3.2S)
+1 1 -76.073900 36.903900 ! 368 Long Creek           (Citizen)
+1 1 -76.036900 36.883900 ! 369 Bay Cliff            (Citizen)
+1 1 -76.095600 36.903300 ! 370 Brock Center VA      (Citizen, LYN000.03)
+1 1 -77.020350 38.327950 ! 371 Southern_boundary_of_Poto86m_001
+1 1 -77.013490 38.327990 ! 372 Southern_boundary_of_Poto86m_002
+1 1 -77.006630 38.328020 ! 373 Southern_boundary_of_Poto86m_003
+1 1 -76.999770 38.328050 ! 374 Southern_boundary_of_Poto86m_004
+1 1 -76.992910 38.328080 ! 375 Southern_boundary_of_Poto86m_005
+1 1 -76.986050 38.328110 ! 376 Southern_boundary_of_Poto86m_006
+1 1 -76.979190 38.328140 ! 377 Southern_boundary_of_Poto86m_007
+1 1 -76.972320 38.328170 ! 378 Southern_boundary_of_Poto86m_008
+1 1 -76.965460 38.328200 ! 379 Southern_boundary_of_Poto86m_009
+1 1 -76.958600 38.328230 ! 380 Southern_boundary_of_Poto86m_010
+1 1 -76.951740 38.328260 ! 381 Southern_boundary_of_Poto86m_011
+1 1 -76.944880 38.328290 ! 382 Southern_boundary_of_Poto86m_012
+1 1 -76.301667 36.778333 ! 383 Money Point VA (NOAA 8639348)
+1 1 -75.091667 38.328333 ! 384 Ocean City Inlet MD (NOAA 8570283)
+1 1 -76.290000 37.615000 ! 385 Windmill Point VA (NOAA 8636580)
+1 1 -77.036667 38.320000 ! 386 Dahlgren VA (NOAA 8635027)
+1 1 -77.021667 38.873333 ! 387 Washington DC (NOAA 8594900)
+1 1 -76.381667 38.993333 ! 388 Bay Bridge Air Gap (NOAA 8575432)
+1 1 -75.810000 39.526667 ! 389 Chesapeake City MD (NOAA 8573927)
+1 1 -76.384667 38.982150 ! 390 Chesapeake Channel LBB 92 (NOAA cb1101)
+1 1 -76.383900 38.402700 ! 391 Cove Point LNG Pier (SL-ADP) (NOAA cb1001)
+1 1 -76.154617 37.674417 ! 392 Rappahannock Shoal Channel LBB 60 (NOAA cb0801)
+1 1 -76.133833 37.140000 ! 393 York Spit LBB 22 (ATON) (NOAA cb0201)
+1 1 -76.012800 36.959400 ! 394 Cape Henry LB 2CH (NOAA cb0102)
+1 1 -76.249500 37.011200 ! 395 Thimble Shoal LB (NOAA cb0301)
+1 1 -76.333883 36.962950 ! 396 Naval Station Norfolk LB 7 (NOAA cb0402)
+1 1 -76.414483 36.956012 ! 397 Newport News Channel LB 14 (NOAA cb0601)
+1 1 -77.269100 38.403500 ! 398 RET2.1 (Potomac tributary)
+1 1 -77.205100 38.352500 ! 399 RET2.2 (Potomac tributary)
+1 1 -77.130530 38.388180 ! 400 RET2.3 (Potomac tributary)
+1 1 -77.265400 38.530100 ! 401 TF2.4  (Potomac tributary)
+1 1 -76.010859 37.306174 ! 402 Cherrystone Creek
+1 1 -76.044919 37.279612 ! 403 Bay near Cherrystone Creek (Shallow)
+1 1 -76.078842 37.253080 ! 404 Bay near Cherrystone Creek (Deep)
+1 1 -76.392000 38.557000 ! 405 East Gooses (2022)
+1 1 -76.493000 38.556000 ! 406 West Gooses (2022) (very close to CB4.3W)
+1 1 -76.319000 38.629000 ! 407 Lower Choptank River (CHOMH1) https://sensors.ioos.us/#metadata/127732/station/data
+1 1 -76.230000 38.209000 ! 408 Mid Bay (CB5MH)               https://sensors.ioos.us/#metadata/128678/station/data
+1 1 -76.359000 38.049000 ! 409 Lower Potomac River (POTMH)   https://sensors.ioos.us/#metadata/128758/station/data
+1 1 -76.145900 38.634900 ! 410 Choptank- Chlora Pt	
+1 1 -76.319500 38.629800 ! 411 Choptank- Lower Choptank
+1 1 -76.409600 38.619400 ! 412 Main Channel- Sharps Island
+1 1 -76.359500 38.048600 ! 413 Potomac- Cornfield Pt
+1 1 -76.567000 38.161500 ! 414 Potomac- Herring Creek
+1 1 -76.740000 38.202600 ! 415 Potomac- St Clements Is
+1 1 -76.314600 36.908200 ! 416 Lafayette River- LFA01
+1 1 -76.305800 36.905700 ! 417 Lafayette River- LAF1
+1 1 -76.281400 36.889400 ! 418 Lafayette River- LFB01
+1 1 -76.338800 36.882400 ! 419 Elizabeth River- ELI2
+1 1 -76.329000 36.865600 ! 420 Elizabeth River- ELD01
+1 1 -76.298100 36.848300 ! 421 Elizabeth River- ELE01
+1 1 -76.289100 36.840700 ! 422 Elizabeth River- EBE1
+1 1 -76.244400 36.836100 ! 423 Elizabeth River- EBB01
+1 1 -76.290300 36.813400 ! 424 Elizabeth River- SBE2
+1 1 -76.291700 36.827100 ! 425 Elizabeth River- SBA1
+1 1 -76.179400 36.928000 ! 426 Little Creek- LCC000.14
+1 1 -76.100600 36.913300 ! 427 Lynnhaven Inlet- CHE009.07
+1 1 -76.085200 36.898000 ! 428 Lynnhaven Inlet- LYN001.98
+1 1 -76.046300 36.899600 ! 429 Lynnhaven Inlet- BBY002.74
+
+!
+!  GLOSSARY:
+!  =========
+!
+!  This input file provides the positions of stations data to be extracted
+!  and written into STATIONS output file.  This file is use to monitor model
+!  fields at frequent time intervals.  It is also used to sample the model at
+!  observation locations in order to build the penalty function used in
+!  variational data assimilation.
+!
+!------------------------------------------------------------------------------
+! Control Switch.
+!------------------------------------------------------------------------------
+!
+! Lstations      Switch to control the writing of station data within nested
+!                  and/or multiple connected grids. Ngrid values are expected.
+!                  By default this switch is set to TRUE in "mod_scalars" for
+!                  all grids when the CPP option STATIONS is activated.  The
+!                  USER can control which grid to process by turning on/off
+!                  this switch.
+!
+!------------------------------------------------------------------------------
+! Logical switches (TRUE/FALSE) to activate writing of fields in STATIONS
+! output file.  Except for tracer type variables, Ngrids values are expected
+! for all switches.
+!------------------------------------------------------------------------------
+!
+!  Sout(idUvel)  Write out 3D U-velocity component.
+!  Sout(idVvel)  Write out 3D V-velocity component.
+!  Sout(idu3dE)  Write out 3D Eastward  velocity component at RHO-points.
+!  Sout(idv3dN)  Write out 3D Northward velocity component at RHO-points.
+!  Sout(idWvel)  Write out 3D W-velocity component.
+!  Sout(idOvel)  Write out 3D omega vertical velocity.
+!  Sout(idUbar)  Write out 2D U-velocity component.
+!  Sout(idVbar)  Write out 2D V-velocity component.
+!  Sout(idu2dE)  Write out 2D Eastward  velocity component at RHO-points.
+!  Sout(idv2dN)  Write out 2D Northward velocity component at RHO-points.
+!  Sout(idFsur)  Write out free-surface.
+!  Sout(idBath)  Write out time-dependent bathymetry.
+!
+!  Sout(idTvar)  Write out tracer type variables,  (NT,Ngrids) values are
+!                  Expected.
+!
+!  Sout(idUsms)  Write out surface U-momentum stress.
+!  Sout(idVsms)  Write out surface V-momentum stress.
+!  Sout(idUbms)  Write out bottom  U-momentum stress.
+!  Sout(idVbms)  Write out bottom  V-momentum stress.
+!
+!  Sout(idUbrs)  Write out current-induced, U-momentum stress.
+!  Sout(idVbrs)  Write out current-induced, V-momentum stress.
+!  Sout(idUbws)  Write out wind-induced, bottom U-wave stress.
+!  Sout(idVbws)  Write out wind-induced, bottom V-wave stress.
+!  Sout(idUbcs)  Write out bottom maximum wave and current U-stress.
+!  Sout(idVbcs)  Write out bottom maximum wave and current V-stress.
+!
+!  Sout(idUbot)  Write out wind-induced, bed wave orbital U-velocity.
+!  Sout(idVbot)  Write out wind-induced, bed wave orbital V-velocity.
+!  Sout(idUbur)  Write out bottom U-velocity above bed.
+!  Sout(idVbvr)  Write out bottom V-velocity above bed.
+!
+!  Sout(idW2xx)  Write out 2D radiation stress, Sxx component.
+!  Sout(idW2xy)  Write out 2D radiation stress, Sxy component.
+!  Sout(idW2yy)  Write out 2D radiation stress, Syy component.
+!  Sout(idU2rs)  Write out 2D U-radiation stress.
+!  Sout(idV2rs)  Write out 2D V-radiation stress.
+!  Sout(idU2Sd)  Write out 2D U-Stokes velocity.
+!  Sout(idV2Sd)  Write out 2D V-Stokes velocity.
+!
+!  Sout(idW3xx)  Write out 3D radiation stress, Sxx component.
+!  Sout(idW3xy)  Write out 3D radiation stress, Sxy component.
+!  Sout(idW3yy)  Write out 3D radiation stress, Syy component.
+!  Sout(idW3zx)  Write out 3D radiation stress, Szx component.
+!  Sout(idW3zy)  Write out 3D radiation stress, Szy component.
+!  Sout(idU3rs)  Write out 3D U-radiation stress.
+!  Sout(idV3rs)  Write out 3D V-radiation stress.
+!  Sout(idU3Sd)  Write out 3D U-Stokes velocity.
+!  Sout(idV3Sd)  Write out 3D V-Stokes velocity.
+!
+!  Sout(idWamp)  Write out wave height.
+!  Sout(idWlen)  Write out wave length.
+!  Sout(idWdir)  Write out wave direction.
+!  Sout(idWptp)  Write out wave surface period.
+!  Sout(idWpbt)  Write out wave bottom period.
+!  Sout(idWorb)  Write out wave bottom orbital velocity.
+!  Sout(idWdis)  Write out wave dissipation.
+!
+!  Sout(idPair)  Write out surface air pressure.
+!  Sout(idUair)  Write out surface U-wind component.
+!  Sout(idVair)  Write out surface V-wind component.
+!
+!  Sout(idTsur)  Write out surface net heat and salt flux.
+!  Sout(idLhea)  Write out latent heat flux.
+!  Sout(idShea)  Write out sensible heat flux.
+!  Sout(idLrad)  Write out long-wave radiation flux.
+!  Sout(idSrad)  Write out short-wave radiation flux.
+!  Sout(idEmPf)  Write out E-P flux.
+!  Sout(idevap)  Write out evaporation rate.
+!  Sout(idrain)  Write out precipitation rate.
+!
+!  Sout(idDano)  Write out density anomaly.
+!  Sout(idVvis)  Write out vertical viscosity coefficient.
+!  Sout(idTdif)  Write out vertical diffusion coefficient of temperature.
+!  Sout(idSdif)  Write out vertical diffusion coefficient of salinity.
+!  Sout(idHsbl)  Write out depth of oceanic surface boundary layer.
+!  Sout(idHbbl)  Write out depth of oceanic bottom boundary layer.
+!  Sout(idMtke)  Write out turbulent kinetic energy.
+!  Sout(idMtls)  Write out turbulent kinetic energy times length scale.
+!
+!  Sout(isd50)   Write out mean grain diameter.
+!  Sout(idens)   Write out mean grain density.
+!  Sout(iwsed)   Write out mean settling velocity.
+!  Sout(itauc)   Write out critical erosion stress.
+!  Sout(irlen)   Write out ripple length.
+!  Sout(irhgt)   Write out ripple height.
+!  Sout(ibwav)   Write out wave excursion amplitude.
+!  Sout(izdef)   Write out default bottom roughness.
+!  Sout(izapp)   Write out apparent bottom roughness.
+!  Sout(izNik)   Write out Nikuradse bottom roughness.
+!  Sout(izbio)   Write out biological bottom roughness.
+!  Sout(izbfm)   Write out bed form bottom roughness.
+!  Sout(izbld)   Write out bed load bottom roughness.
+!  Sout(izwbl)   Write out wave bottom roughness.
+!  Sout(iactv)   Write out active layer thickness.
+!  Sout(ishgt)   Write out saltation height.
+!
+!------------------------------------------------------------------------------
+! Station positions KEYWORDS.
+!------------------------------------------------------------------------------
+!
+!  NSTATION      Number of stations to process in each nested grid. Ngrids
+!                  values are expected.  These values are essential because
+!                  the station arrays are dynamically allocated using these
+!                  values.
+!
+!  POS           Station locations for all grids in any desired order.  The
+!                  horizontal location for a particular station can be
+!                  specified in terms of fractional (I,J) grid pairs (FLAG=0)
+!                  or (longitude,latitude) grid pairs (FLAG=1). Here, FLAG is
+!                  a special switch and may be used for multiple purposes.
+!                  The GRID column indicates nested grid number to process.
+!                  This value must be one in non-nested applications.  The
+!                  COMMENT section is ignored during reading and may be used
+!                  to help documentation.  This locations are used to
+!                  interpolate model data before writting to output STATIONS
+!                  file.  The stations locations are read using the following
+!                  statement:
+!
+!                  is(1:Ngrids)=0
+!                  DO WHILE (.true.)
+!                    read (unit,*,ERR=10) igrid, flag, Xpos, Ypos
+!                    ng=MAX(1,ABS(ng))
+!                    is(ng)=ic(ng)+1
+!                    SCALARS(ng)%Sflag(is(ng))=flag
+!                    SCALARS(ng)%SposX(is(ng))=Xpos
+!                    SCALARS(ng)%SposY(is(ng))=Ypos
+!                  END DO
+!
+!                Since there is no decoding during the reading of the stations
+!                locations, the POS keyword must be the last one to process.
+!                That is, it should be at the end of the input specification.
+!
+!

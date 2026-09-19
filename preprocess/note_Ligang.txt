@@ -1,0 +1,17 @@
+1. 20260520: smooth h result,
+>> 
+rx0_before = 0.9143
+factor = 1.5000
+
+iter    1: rx0 = 0.8350, max dh = 226.276737
+iter    2: rx0 = 0.8148, max dh = 104.101983
+iter    3: rx0 = 0.7758, max dh = 65.042948
+iter    4: rx0 = 0.6524, max dh = 34.920716
+iter    5: rx0 = 0.5669, max dh = 13.812553
+iter    6: rx0 = 0.4541, max dh = 12.075094
+iter    7: rx0 = 0.3748, max dh = 9.953521
+iter    8: rx0 = 0.2588, max dh = 8.964756
+iter    9: rx0 = 0.2000, max dh = 3.815123
+
+rx0_after = 0.2000
+>> 
